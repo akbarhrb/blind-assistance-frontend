@@ -1,7 +1,7 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL || "http://127.0.0.1:8000";
+  "https://e68d-34-24-43-253.ngrok-free.app";
 
 const TOKEN_KEY = "auth:token";
 const USER_KEY = "auth:user";

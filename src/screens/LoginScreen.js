@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   SafeAreaView,
   StyleSheet,
@@ -19,9 +19,11 @@ const LoginScreen = ({ navigation, route }) => {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  if (isLoggedIn) {
-    navigation.replace("Home");
-  }
+  useEffect(() => {
+    if (isLoggedIn) {
+      navigation.replace("Home");
+    }
+  }, [isLoggedIn, navigation]);
 
   const handleLogin = async () => {
     if (!email || !password) {
