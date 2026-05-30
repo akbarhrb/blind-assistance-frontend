@@ -35,7 +35,7 @@ const HomeScreen = ({ navigation }) => {
   const lastSpokenRef = useRef("");
   const isFocused = useIsFocused();
   const { isLoggedIn } = useAuth();
-  const { strings, languageConfig } = useLanguage();
+  const { strings, languageConfig, speechRate, voiceType, speechVoiceId } = useLanguage();
   const homeStrings = strings.home;
   const navStrings = strings.navigation;
 
@@ -65,12 +65,13 @@ const HomeScreen = ({ navigation }) => {
     Speech.stop();
     Speech.speak(text, {
       language: languageConfig.speechLocale,
-      rate: 0.95,
-      pitch: 1,
+      rate: speechRate,
+      pitch: voiceType === "female" ? 1.12 : 0.9,
+      voice: speechVoiceId || undefined,
       volume: 1,
       useApplicationAudioSession: false,
     });
-  }, [languageConfig.speechLocale]);
+  }, [languageConfig.speechLocale, speechRate, speechVoiceId, voiceType]);
 
   const runDetection = useCallback(async () => {
     if (isDetectingRef.current || !cameraRef.current || !permission?.granted) {

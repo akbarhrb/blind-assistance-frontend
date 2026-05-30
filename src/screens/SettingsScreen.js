@@ -10,19 +10,33 @@ import {
   StatusBar,
   Alert,
 } from "react-native";
-import { ArrowLeft, Globe, Volume2, ChevronDown, LogOut } from "lucide-react-native";
+import { ArrowLeft, Globe, Volume2, LogOut } from "lucide-react-native";
 import * as Speech from "expo-speech";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
+
+const SPEED_OPTIONS = [0.75, 0.9, 1, 1.15];
 
 const SettingsScreen = ({ navigation }) => {
   const [faceDetection, setFaceDetection] = React.useState(true);
   const [objectDetection, setObjectDetection] = React.useState(true);
   const [highContrast, setHighContrast] = React.useState(true);
   const { signOut } = useAuth();
-  const { language, setLanguage, strings, isArabic, languageConfig } = useLanguage();
+  const {
+    language,
+    setLanguage,
+    speechRate,
+    setSpeechRate,
+    voiceType,
+    setVoiceType,
+    speechVoiceId,
+    strings,
+    isArabic,
+    languageConfig,
+  } = useLanguage();
   const t = strings.settings;
   const common = strings.common;
+  const femaleLabel = isArabic ? "أنثى" : "Female";
 
   const handleLogout = () => {
     Alert.alert(t.logoutTitle, t.logoutMessage, [
@@ -46,11 +60,12 @@ const SettingsScreen = ({ navigation }) => {
     Speech.speak(t.testVoicePhrase, {
       language: languageConfig.speechLocale,
       volume: 1,
-      rate: 0.95,
-      pitch: 1,
+      rate: speechRate,
+      pitch: voiceType === "female" ? 1.12 : 0.9,
+      voice: speechVoiceId || undefined,
       useApplicationAudioSession: false,
     });
-  }, [languageConfig.speechLocale, t.testVoicePhrase]);
+  }, [languageConfig.speechLocale, speechRate, speechVoiceId, t.testVoicePhrase, voiceType]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -92,15 +107,43 @@ const SettingsScreen = ({ navigation }) => {
         <View style={styles.card}>
           <View style={styles.voiceControlGroup}>
             <Text style={styles.innerLabel}>{t.speed}</Text>
-            <View style={styles.sliderTrack}>
-              <View style={styles.sliderFill} />
-              <View style={styles.sliderThumb} />
+            <View style={styles.optionRow}>
+              {SPEED_OPTIONS.map((rate) => {
+                const active = speechRate === rate;
+                return (
+                  <TouchableOpacity
+                    key={rate}
+                    style={[styles.optionChip, active && styles.optionChipActive]}
+                    onPress={() => setSpeechRate(rate)}
+                  >
+                    <Text style={[styles.optionChipText, active && styles.optionChipTextActive]}>
+                      {`${rate.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}x`}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             <Text style={[styles.innerLabel, { marginTop: 20 }]}>{t.voiceType}</Text>
-            <View style={styles.dropdown}>
-              <Text style={styles.cardText}>{t.male}</Text>
-              <ChevronDown size={20} color="#94A3B8" />
+            <View style={styles.optionRow}>
+              <TouchableOpacity
+                style={[styles.optionChip, voiceType === "male" && styles.optionChipActive]}
+                onPress={() => setVoiceType("male")}
+              >
+                <Text style={[styles.optionChipText, voiceType === "male" && styles.optionChipTextActive]}>
+                  {t.male}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.optionChip, voiceType === "female" && styles.optionChipActive]}
+                onPress={() => setVoiceType("female")}
+              >
+                <Text
+                  style={[styles.optionChipText, voiceType === "female" && styles.optionChipTextActive]}
+                >
+                  {femaleLabel}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity style={styles.testVoiceButton} onPress={handleTestVoice}>
@@ -146,7 +189,6 @@ const SettingsScreen = ({ navigation }) => {
           <Text style={[styles.innerLabel, { marginTop: 20 }]}>{t.textSize}</Text>
           <View style={styles.dropdown}>
             <Text style={styles.cardText}>{t.normal}</Text>
-            <ChevronDown size={20} color="#94A3B8" />
           </View>
         </View>
 
@@ -232,10 +274,40 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "500",
   },
+  voiceControlGroup: {
+    gap: 0,
+  },
   innerLabel: {
     color: "#FFFFFF",
     fontSize: 16,
     marginBottom: 12,
+  },
+  optionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  optionChip: {
+    backgroundColor: "#0F172A",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    minWidth: 74,
+    alignItems: "center",
+  },
+  optionChipActive: {
+    borderColor: "#2DD4BF",
+    backgroundColor: "rgba(45, 212, 191, 0.15)",
+  },
+  optionChipText: {
+    color: "#CBD5E1",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  optionChipTextActive: {
+    color: "#FFFFFF",
   },
   dropdown: {
     flexDirection: "row",
