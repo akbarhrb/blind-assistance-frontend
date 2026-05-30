@@ -24,6 +24,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { useIsFocused } from "@react-navigation/native";
 import { apiRequest } from "../utils/api";
+import { useLanguage } from "../context/LanguageContext";
 
 const buildImagePart = (uri, fallbackName = "object.jpg") => {
   const name = uri.split("/").pop() || fallbackName;
@@ -35,6 +36,9 @@ const buildImagePart = (uri, fallbackName = "object.jpg") => {
 };
 
 const AddObjectScreen = ({ navigation }) => {
+  const { strings } = useLanguage();
+  const t = strings.addObject;
+  const common = strings.common;
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [imageUri, setImageUri] = useState(null);
@@ -53,14 +57,14 @@ const AddObjectScreen = ({ navigation }) => {
       const data = await apiRequest("/objects");
       setObjects(data);
     } catch (error) {
-      // silent for now
+      setObjects([]);
     }
   };
 
   const handleUpload = async () => {
     const mediaPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (mediaPermission.status !== "granted") {
-      Alert.alert("Permission required", "Photo access is needed to upload an image.");
+      Alert.alert(t.permissionRequired, t.photoPermission);
       return;
     }
 
@@ -76,7 +80,7 @@ const AddObjectScreen = ({ navigation }) => {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert("Missing info", "Please provide an object name.");
+      Alert.alert(t.missingInfo, t.missingNameBody);
       return;
     }
 
@@ -102,8 +106,7 @@ const AddObjectScreen = ({ navigation }) => {
       setCategory("");
       setImageUri(null);
     } catch (error) {
-      console.log(error);
-      Alert.alert("Save failed", error.message || "Unable to save object.");
+      Alert.alert(t.saveFailed, error.message || t.saveFailedBody);
     } finally {
       setLoading(false);
     }
@@ -114,7 +117,7 @@ const AddObjectScreen = ({ navigation }) => {
       await apiRequest(`/objects/${objectId}`, { method: "DELETE" });
       setObjects((prev) => prev.filter((item) => item.id !== objectId));
     } catch (error) {
-      Alert.alert("Delete failed", error.message || "Unable to delete.");
+      Alert.alert(t.deleteFailed, error.message || t.deleteFailedBody);
     }
   };
 
@@ -122,43 +125,39 @@ const AddObjectScreen = ({ navigation }) => {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" />
 
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation?.goBack()}>
           <ArrowLeft size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add Object</Text>
+        <Text style={styles.headerTitle}>{t.title}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Main Upload Area */}
         <View style={styles.uploadMain}>
           {imageUri ? (
             <Image source={{ uri: imageUri }} style={styles.previewImage} />
           ) : (
             <>
               <UploadCloud size={48} color="#94A3B8" />
-              <Text style={styles.uploadText}>Upload or Capture</Text>
+              <Text style={styles.uploadText}>{t.uploadOrCapture}</Text>
             </>
           )}
         </View>
 
-        {/* Secondary Action Buttons */}
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.actionButton}>
             <Camera size={20} color="#FFFFFF" style={styles.buttonIcon} />
-            <Text style={styles.buttonText}>Capture</Text>
+            <Text style={styles.buttonText}>{common.capture}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionButton} onPress={handleUpload}>
             <Upload size={20} color="#FFFFFF" style={styles.buttonIcon} />
-            <Text style={styles.buttonText}>Upload</Text>
+            <Text style={styles.buttonText}>{common.upload}</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Form Fields */}
         <TextInput
           style={styles.input}
-          placeholder="Object Name"
+          placeholder={t.objectName}
           placeholderTextColor="#94A3B8"
           value={name}
           onChangeText={setName}
@@ -167,7 +166,7 @@ const AddObjectScreen = ({ navigation }) => {
         <View style={styles.pickerContainer}>
           <TextInput
             style={styles.pickerInput}
-            placeholder="Category (optional)"
+            placeholder={t.category}
             placeholderTextColor="#94A3B8"
             value={category}
             onChangeText={setCategory}
@@ -176,21 +175,16 @@ const AddObjectScreen = ({ navigation }) => {
         </View>
 
         <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#0F172A" />
-          ) : (
-            <Text style={styles.saveButtonText}>Save</Text>
-          )}
+          {loading ? <ActivityIndicator color="#0F172A" /> : <Text style={styles.saveButtonText}>{common.save}</Text>}
         </TouchableOpacity>
 
-        {/* Custom Objects List */}
-        <Text style={styles.sectionTitle}>Custom Objects</Text>
+        <Text style={styles.sectionTitle}>{t.customObjects}</Text>
 
         {objects.map((item) => (
           <View key={item.id} style={styles.objectCard}>
             <View style={styles.objectInfo}>
               <Text style={styles.objectName}>{item.name}</Text>
-              <Text style={styles.objectCategory}>{item.category || "Uncategorized"}</Text>
+              <Text style={styles.objectCategory}>{item.category || t.uncategorized}</Text>
             </View>
             <View style={styles.iconGroup}>
               <TouchableOpacity style={styles.iconBtn}>
@@ -340,6 +334,7 @@ const styles = StyleSheet.create({
     marginLeft: 15,
     padding: 5,
   },
+  objectInfo: {},
 });
 
 export default AddObjectScreen;

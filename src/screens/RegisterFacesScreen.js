@@ -24,17 +24,17 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { useIsFocused } from "@react-navigation/native";
 import { apiRequest } from "../utils/api";
+import { useLanguage } from "../context/LanguageContext";
 
 const buildImagePart = (uri, fallbackName = "image.jpg") => {
   const name = uri.split("/").pop() || fallbackName;
-  return {
-    uri,
-    name,
-    type: "image/jpeg",
-  };
+  return { uri, name, type: "image/jpeg" };
 };
 
 const RegisterFacesScreen = ({ navigation }) => {
+  const { strings } = useLanguage();
+  const t = strings.faces;
+  const common = strings.common;
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef(null);
   const [previewUri, setPreviewUri] = useState(null);
@@ -63,7 +63,7 @@ const RegisterFacesScreen = ({ navigation }) => {
       const data = await apiRequest("/faces");
       setSavedFaces(data);
     } catch (error) {
-      // Silent fail for now
+      setSavedFaces([]);
     }
   };
 
@@ -71,7 +71,7 @@ const RegisterFacesScreen = ({ navigation }) => {
     if (!permission?.granted) {
       const updatedPermission = await requestPermission();
       if (!updatedPermission.granted) {
-        Alert.alert("Permission required", "Camera access is needed to capture a face.");
+        Alert.alert(t.permissionRequired, t.cameraPermission);
         return;
       }
     }
@@ -86,14 +86,14 @@ const RegisterFacesScreen = ({ navigation }) => {
         setPreviewUri(photo.uri);
       }
     } catch (error) {
-      Alert.alert("Capture failed", "Unable to capture the image. Please try again.");
+      Alert.alert(t.captureFailed, t.captureFailedBody);
     }
   };
 
   const handleUpload = async () => {
     const mediaPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (mediaPermission.status !== "granted") {
-      Alert.alert("Permission required", "Photo access is needed to upload an image.");
+      Alert.alert(t.permissionRequired, t.photoPermission);
       return;
     }
 
@@ -109,7 +109,7 @@ const RegisterFacesScreen = ({ navigation }) => {
 
   const handleSave = async () => {
     if (!name.trim() || !previewUri) {
-      Alert.alert("Missing info", "Please provide a name and image.");
+      Alert.alert(t.missingInfo, t.missingInfoBody);
       return;
     }
 
@@ -129,7 +129,7 @@ const RegisterFacesScreen = ({ navigation }) => {
       setName("");
       setPreviewUri(null);
     } catch (error) {
-      Alert.alert("Save failed", error.message || "Unable to save face.");
+      Alert.alert(t.saveFailed, error.message || t.saveFailedBody);
     } finally {
       setLoading(false);
     }
@@ -140,7 +140,7 @@ const RegisterFacesScreen = ({ navigation }) => {
       await apiRequest(`/faces/${faceId}`, { method: "DELETE" });
       setSavedFaces((prev) => prev.filter((item) => item.id !== faceId));
     } catch (error) {
-      Alert.alert("Delete failed", error.message || "Unable to delete.");
+      Alert.alert(t.deleteFailed, error.message || t.deleteFailedBody);
     }
   };
 
@@ -148,19 +148,17 @@ const RegisterFacesScreen = ({ navigation }) => {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" />
 
-      {/* Header Section */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation?.goBack()}>
           <ArrowLeft size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Register Faces</Text>
+        <Text style={styles.headerTitle}>{t.title}</Text>
         <TouchableOpacity style={styles.voiceIcon}>
           <Volume2 size={24} color="#2DD4BF" />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Camera Preview Area */}
         <View style={styles.cameraPreview}>
           {previewUri ? (
             <Image source={{ uri: previewUri }} style={styles.previewImage} />
@@ -168,44 +166,37 @@ const RegisterFacesScreen = ({ navigation }) => {
             <CameraView ref={cameraRef} style={styles.camera} facing="front" />
           ) : (
             <View style={styles.cameraFallback}>
-              <Text style={styles.cameraFallbackText}>Enable camera access</Text>
+              <Text style={styles.cameraFallbackText}>{t.cameraFallback}</Text>
             </View>
           )}
         </View>
 
-        {/* Capture / Upload Buttons */}
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.actionButton} onPress={handleCapture}>
             <Camera size={20} color="#FFFFFF" style={styles.buttonIcon} />
-            <Text style={styles.buttonText}>{previewUri ? "Retake" : "Capture"}</Text>
+            <Text style={styles.buttonText}>{previewUri ? common.retake : common.capture}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionButton} onPress={handleUpload}>
             <Upload size={20} color="#FFFFFF" style={styles.buttonIcon} />
-            <Text style={styles.buttonText}>Upload</Text>
+            <Text style={styles.buttonText}>{common.upload}</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Input & Save Section */}
         <View style={styles.formSection}>
           <TextInput
             style={styles.input}
-            placeholder="Person Name"
+            placeholder={t.personName}
             placeholderTextColor="#64748B"
             value={name}
             onChangeText={setName}
           />
 
           <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={loading}>
-            {loading ? (
-              <ActivityIndicator color="#0F172A" />
-            ) : (
-              <Text style={styles.saveButtonText}>Save</Text>
-            )}
+            {loading ? <ActivityIndicator color="#0F172A" /> : <Text style={styles.saveButtonText}>{common.save}</Text>}
           </TouchableOpacity>
         </View>
 
-        {/* Saved Faces List */}
-        <Text style={styles.sectionTitle}>Saved Faces</Text>
+        <Text style={styles.sectionTitle}>{t.savedFaces}</Text>
 
         {savedFaces.map((face) => (
           <View key={face.id} style={styles.faceCard}>

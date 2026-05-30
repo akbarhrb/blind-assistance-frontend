@@ -12,9 +12,12 @@ import {
 } from "react-native";
 import { ArrowLeft, User, Mail, Lock, Eye, ShieldCheck, Volume2, UserPlus } from "lucide-react-native";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 
 const RegisterScreen = ({ navigation }) => {
   const { signUp } = useAuth();
+  const { strings } = useLanguage();
+  const t = strings.auth;
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,11 +26,11 @@ const RegisterScreen = ({ navigation }) => {
 
   const handleRegister = async () => {
     if (!name || !email || !password) {
-      Alert.alert("Missing info", "Please fill in all fields.");
+      Alert.alert(t.missingInfo, t.registerMissingBody);
       return;
     }
     if (password !== confirmPassword) {
-      Alert.alert("Passwords do not match", "Please re-enter your password.");
+      Alert.alert(t.passwordMismatchTitle, t.passwordMismatchBody);
       return;
     }
 
@@ -36,8 +39,7 @@ const RegisterScreen = ({ navigation }) => {
       await signUp(name.trim(), email.trim(), password);
       navigation.replace("Home");
     } catch (error) {
-      console.log(error);
-      Alert.alert("Registration failed", error.message || "Unable to create account.");
+      Alert.alert(t.registrationFailed, error.message || t.registrationFailedBody);
     } finally {
       setSubmitting(false);
     }
@@ -47,35 +49,31 @@ const RegisterScreen = ({ navigation }) => {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" />
 
-      {/* Header with Back Arrow */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.navigate("Login")}>
           <ArrowLeft size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Register</Text>
+        <Text style={styles.headerTitle}>{t.registerTitle}</Text>
       </View>
 
       <View style={styles.container}>
-        {/* Profile/Add User Icon */}
         <View style={styles.iconContainer}>
           <View style={styles.iconCircle}>
             <UserPlus size={44} color="#F59E0B" />
           </View>
         </View>
 
-        {/* Voice Guide Toggle */}
         <TouchableOpacity style={styles.voiceGuide}>
           <Volume2 size={24} color="#2DD4BF" />
-          <Text style={styles.voiceGuideText}>Voice guide</Text>
+          <Text style={styles.voiceGuideText}>{t.registerVoiceGuide}</Text>
         </TouchableOpacity>
 
-        {/* Form Fields */}
         <View style={styles.form}>
           <View style={styles.inputContainer}>
             <User size={20} color="#94A3B8" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Full Name"
+              placeholder={t.fullName}
               placeholderTextColor="#64748B"
               autoCapitalize="words"
               value={name}
@@ -87,7 +85,7 @@ const RegisterScreen = ({ navigation }) => {
             <Mail size={20} color="#94A3B8" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Email"
+              placeholder={t.email}
               placeholderTextColor="#64748B"
               keyboardType="email-address"
               autoCapitalize="none"
@@ -100,7 +98,7 @@ const RegisterScreen = ({ navigation }) => {
             <Lock size={20} color="#94A3B8" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Password"
+              placeholder={t.password}
               placeholderTextColor="#64748B"
               secureTextEntry
               value={password}
@@ -113,7 +111,7 @@ const RegisterScreen = ({ navigation }) => {
             <ShieldCheck size={20} color="#94A3B8" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Confirm Password"
+              placeholder={t.confirmPassword}
               placeholderTextColor="#64748B"
               secureTextEntry
               value={confirmPassword}
@@ -121,26 +119,17 @@ const RegisterScreen = ({ navigation }) => {
             />
           </View>
 
-          {/* Register Button */}
           <TouchableOpacity
             style={styles.registerButton}
             activeOpacity={0.8}
             onPress={handleRegister}
             disabled={submitting}
           >
-            {submitting ? (
-              <ActivityIndicator color="#0F172A" />
-            ) : (
-              <Text style={styles.registerButtonText}>Register</Text>
-            )}
+            {submitting ? <ActivityIndicator color="#0F172A" /> : <Text style={styles.registerButtonText}>{t.register}</Text>}
           </TouchableOpacity>
 
-          {/* Back to Login */}
-          <TouchableOpacity
-            style={styles.loginLink}
-            onPress={() => navigation.navigate("Login")}
-          >
-            <Text style={styles.loginLinkText}>Already have an account? Login</Text>
+          <TouchableOpacity style={styles.loginLink} onPress={() => navigation.navigate("Login")}>
+            <Text style={styles.loginLinkText}>{t.alreadyHaveAccount}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -151,7 +140,7 @@ const RegisterScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#0F172A", // Matching the dark theme
+    backgroundColor: "#0F172A",
   },
   header: {
     flexDirection: "row",
@@ -178,7 +167,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: "rgba(245, 158, 11, 0.15)", // Transparent orange
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
@@ -200,7 +189,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1E293B", // Darker field color
+    backgroundColor: "#1E293B",
     borderRadius: 25,
     marginBottom: 15,
     paddingHorizontal: 20,
@@ -218,7 +207,7 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   registerButton: {
-    backgroundColor: "#2DD4BF", // Teal color
+    backgroundColor: "#2DD4BF",
     borderRadius: 25,
     height: 65,
     justifyContent: "center",

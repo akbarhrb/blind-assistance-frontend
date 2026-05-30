@@ -2,18 +2,13 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ActivityIndicator } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
-import { 
-  Settings, 
-  Mic, 
-  UserPlus, 
-  PackagePlus, 
-  ListTodo 
-} from "lucide-react-native";
+import { Settings, Mic, UserPlus, PackagePlus, ListTodo } from "lucide-react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Speech from "expo-speech";
 import { useIsFocused } from "@react-navigation/native";
 import Svg, { Rect, Text as SvgText } from "react-native-svg";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 import { apiRequest } from "../utils/api";
 
 // Screen Imports
@@ -29,7 +24,8 @@ const Stack = createStackNavigator();
 
 const HomeScreen = ({ navigation }) => {
   const [permission, requestPermission] = useCameraPermissions();
-  const [detectionLabel, setDetectionLabel] = useState("Scanning...");
+  const [detectionStatus, setDetectionStatus] = useState("scanning");
+  const [detectedObjectLabel, setDetectedObjectLabel] = useState("");
   const [isDetecting, setIsDetecting] = useState(false);
   const [layout, setLayout] = useState({ width: 0, height: 0 });
   const [boxes, setBoxes] = useState([]);
@@ -39,6 +35,9 @@ const HomeScreen = ({ navigation }) => {
   const lastSpokenRef = useRef("");
   const isFocused = useIsFocused();
   const { isLoggedIn } = useAuth();
+  const { strings, languageConfig } = useLanguage();
+  const homeStrings = strings.home;
+  const navStrings = strings.navigation;
 
   useEffect(() => {
     if (!permission) {
@@ -65,11 +64,13 @@ const HomeScreen = ({ navigation }) => {
     lastSpokenRef.current = text;
     Speech.stop();
     Speech.speak(text, {
-      language: "en-US",
+      language: languageConfig.speechLocale,
       rate: 0.95,
       pitch: 1,
+      volume: 1,
+      useApplicationAudioSession: false,
     });
-  }, []);
+  }, [languageConfig.speechLocale]);
 
   const runDetection = useCallback(async () => {
     if (isDetectingRef.current || !cameraRef.current || !permission?.granted) {
@@ -79,6 +80,7 @@ const HomeScreen = ({ navigation }) => {
     try {
       isDetectingRef.current = true;
       setIsDetecting(true);
+
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.5,
         skipProcessing: true,
@@ -107,10 +109,11 @@ const HomeScreen = ({ navigation }) => {
 
       const detectedBoxes = Array.isArray(result?.boxes) ? result.boxes : [];
       setBoxes(detectedBoxes);
+
       if (detectedBoxes.length === 0) {
-        const noObjectsText = "No objects detected";
-        setDetectionLabel(noObjectsText);
-        speakDetection(noObjectsText);
+        setDetectionStatus("noObjects");
+        setDetectedObjectLabel("");
+        speakDetection(homeStrings.noObjectsSpeech);
         return;
       }
 
@@ -124,16 +127,19 @@ const HomeScreen = ({ navigation }) => {
         return currentScore > bestScore ? box : currentBest;
       }, null);
 
-      const spokenText = `${formatLabel(bestBox?.label)} detected`;
-      setDetectionLabel(spokenText);
+      const objectLabel = formatLabel(bestBox?.label);
+      const spokenText = `${objectLabel} ${homeStrings.detectedSuffix}`;
+      setDetectionStatus("detected");
+      setDetectedObjectLabel(objectLabel);
       speakDetection(spokenText);
     } catch (error) {
-      setDetectionLabel("Detection unavailable");
+      setDetectionStatus("unavailable");
+      setDetectedObjectLabel("");
     } finally {
       isDetectingRef.current = false;
       setIsDetecting(false);
     }
-  }, [permission?.granted, speakDetection]);
+  }, [permission?.granted, speakDetection, homeStrings.detectedSuffix, homeStrings.noObjectsSpeech]);
 
   const scaleBox = (box) => {
     const scaleX = layout.width / imageSize.width;
@@ -161,6 +167,21 @@ const HomeScreen = ({ navigation }) => {
   }, [isFocused, permission?.granted, runDetection]);
 
   useEffect(() => {
+    if (detectionStatus === "scanning") {
+      return;
+    }
+
+    if (detectionStatus === "noObjects") {
+      speakDetection(homeStrings.noObjectsSpeech);
+      return;
+    }
+
+    if (detectionStatus === "detected" && detectedObjectLabel) {
+      speakDetection(`${detectedObjectLabel} ${homeStrings.detectedSuffix}`);
+    }
+  }, [detectionStatus, detectedObjectLabel, speakDetection, homeStrings.detectedSuffix, homeStrings.noObjectsSpeech]);
+
+  useEffect(() => {
     return () => {
       Speech.stop();
     };
@@ -177,27 +198,30 @@ const HomeScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Custom Header */}
       <View style={styles.header}>
-        <Text style={styles.logoText}>BlindAssistance</Text>
+        <Text style={styles.logoText}>{homeStrings.appTitle}</Text>
         <TouchableOpacity onPress={() => guardedNavigate("Settings")}>
           <Settings size={28} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
-      {/* Main Content Area */}
       <View style={styles.content}>
-        {/* Detection Alert Badge */}
         <View style={styles.alertBadge}>
           <Text style={styles.alertText}>
-            {isDetecting ? "Detecting..." : detectionLabel}
+            {isDetecting
+              ? homeStrings.detecting
+              : detectionStatus === "detected" && detectedObjectLabel
+                ? `${detectedObjectLabel} ${homeStrings.detectedSuffix}`
+                : detectionStatus === "noObjects"
+                  ? homeStrings.noObjects
+                  : detectionStatus === "unavailable"
+                    ? homeStrings.unavailable
+                    : homeStrings.scanning}
           </Text>
         </View>
 
-        {/* Audio Wave Visualizer Placeholder */}
         <AudioVisualizer />
 
-        {/* Camera Preview */}
         <View
           style={styles.cameraPreview}
           onLayout={(event) => {
@@ -209,7 +233,7 @@ const HomeScreen = ({ navigation }) => {
             <CameraView ref={cameraRef} style={styles.camera} facing="back" />
           ) : (
             <View style={styles.cameraFallback}>
-              <Text style={styles.cameraFallbackText}>Enable camera access to start detection</Text>
+              <Text style={styles.cameraFallbackText}>{homeStrings.cameraFallback}</Text>
             </View>
           )}
 
@@ -243,41 +267,26 @@ const HomeScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Mic Button Section */}
       <View style={styles.micSection}>
         <TouchableOpacity style={styles.micButton} onPress={runDetection}>
-          {isDetecting ? (
-            <ActivityIndicator color="#0F172A" />
-          ) : (
-            <Mic size={32} color="#0F172A" />
-          )}
+          {isDetecting ? <ActivityIndicator color="#0F172A" /> : <Mic size={32} color="#0F172A" />}
         </TouchableOpacity>
       </View>
 
-      {/* Bottom Grid Navigation */}
       <View style={styles.bottomGrid}>
-        <TouchableOpacity 
-          style={styles.gridItem} 
-          onPress={() => guardedNavigate("RegisterFaces")}
-        >
+        <TouchableOpacity style={styles.gridItem} onPress={() => guardedNavigate("RegisterFaces")}>
           <UserPlus size={28} color="#FFFFFF" />
-          <Text style={styles.gridLabel}>Faces</Text>
+          <Text style={styles.gridLabel}>{navStrings.faces}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.gridItem}
-          onPress={() => guardedNavigate("AddObject")}
-        >
+        <TouchableOpacity style={styles.gridItem} onPress={() => guardedNavigate("AddObject")}>
           <PackagePlus size={28} color="#FFFFFF" />
-          <Text style={styles.gridLabel}>Objects</Text>
+          <Text style={styles.gridLabel}>{navStrings.objects}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.gridItem}
-          onPress={() => guardedNavigate("Logs")}
-        >
+        <TouchableOpacity style={styles.gridItem} onPress={() => guardedNavigate("Logs")}>
           <ListTodo size={28} color="#FFFFFF" />
-          <Text style={styles.gridLabel}>Logs</Text>
+          <Text style={styles.gridLabel}>{navStrings.logs}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -299,8 +308,8 @@ const AppNavigator = () => {
     <NavigationContainer>
       <Stack.Navigator
         screenOptions={{
-          headerShown: false, // Using custom headers for more control
-          cardStyle: { backgroundColor: "#0F172A" }
+          headerShown: false,
+          cardStyle: { backgroundColor: "#0F172A" },
         }}
       >
         <Stack.Screen name="Home" component={HomeScreen} />
@@ -358,17 +367,6 @@ const styles = StyleSheet.create({
     color: "#0F172A",
     fontSize: 20,
     fontWeight: "bold",
-  },
-  waveContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    height: 60,
-    gap: 6,
-  },
-  waveBar: {
-    width: 4,
-    backgroundColor: "#2DD4BF",
-    borderRadius: 2,
   },
   cameraPreview: {
     width: 240,

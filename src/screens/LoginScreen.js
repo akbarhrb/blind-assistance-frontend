@@ -12,9 +12,12 @@ import {
 } from "react-native";
 import { Eye, Mail, Lock, Volume2, Fingerprint, ScanEye } from "lucide-react-native";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 
 const LoginScreen = ({ navigation, route }) => {
   const { signIn, isLoggedIn } = useAuth();
+  const { strings } = useLanguage();
+  const t = strings.auth;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -27,7 +30,7 @@ const LoginScreen = ({ navigation, route }) => {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert("Missing info", "Please enter your email and password.");
+      Alert.alert(t.missingInfo, t.loginMissingBody);
       return;
     }
 
@@ -35,13 +38,9 @@ const LoginScreen = ({ navigation, route }) => {
       setSubmitting(true);
       await signIn(email.trim(), password);
       const redirectTo = route?.params?.redirectTo;
-      if (redirectTo) {
-        navigation.replace(redirectTo);
-      } else {
-        navigation.replace("Home");
-      }
+      navigation.replace(redirectTo || "Home");
     } catch (error) {
-      Alert.alert("Login failed", error.message || "Unable to sign in.");
+      Alert.alert(t.loginFailed, error.message || t.loginFailedBody);
     } finally {
       setSubmitting(false);
     }
@@ -51,7 +50,6 @@ const LoginScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" />
       <View style={styles.container}>
-        {/* Header / Logo Section */}
         <View style={styles.headerContainer}>
           <View style={styles.logoCircle}>
             <ScanEye size={48} color="#2DD4BF" />
@@ -61,23 +59,21 @@ const LoginScreen = ({ navigation, route }) => {
             <Fingerprint size={20} color="#2DD4BF" style={{ marginHorizontal: 2 }} />
             <Fingerprint size={20} color="#D97706" style={{ marginHorizontal: 2 }} />
           </View>
-          <Text style={styles.title}>BlindAssist</Text>
-          <Text style={styles.subtitle}>Vision Aid</Text>
+          <Text style={styles.title}>{t.loginTitle}</Text>
+          <Text style={styles.subtitle}>{t.loginSubtitle}</Text>
         </View>
 
-        {/* Voice Guide Button */}
         <TouchableOpacity style={styles.voiceGuide}>
           <Volume2 size={24} color="#2DD4BF" />
-          <Text style={styles.voiceGuideText}>Tap for voice guide</Text>
+          <Text style={styles.voiceGuideText}>{t.voiceGuide}</Text>
         </TouchableOpacity>
 
-        {/* Form Section */}
         <View style={styles.form}>
           <View style={styles.inputContainer}>
             <Mail size={20} color="#94A3B8" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Email"
+              placeholder={t.email}
               placeholderTextColor="#94A3B8"
               keyboardType="email-address"
               autoCapitalize="none"
@@ -90,7 +86,7 @@ const LoginScreen = ({ navigation, route }) => {
             <Lock size={20} color="#94A3B8" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Password"
+              placeholder={t.password}
               placeholderTextColor="#94A3B8"
               secureTextEntry
               value={password}
@@ -105,18 +101,14 @@ const LoginScreen = ({ navigation, route }) => {
             onPress={handleLogin}
             disabled={submitting}
           >
-            {submitting ? (
-              <ActivityIndicator color="#0F172A" />
-            ) : (
-              <Text style={styles.loginButtonText}>Login</Text>
-            )}
+            {submitting ? <ActivityIndicator color="#0F172A" /> : <Text style={styles.loginButtonText}>{t.login}</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.createAccountButton}
             onPress={() => navigation.navigate("Register")}
           >
-            <Text style={styles.createAccountText}>Create Account</Text>
+            <Text style={styles.createAccountText}>{t.createAccount}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -127,7 +119,7 @@ const LoginScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#0F172A", // Dark navy/black background
+    backgroundColor: "#0F172A",
   },
   container: {
     flex: 1,
@@ -198,7 +190,7 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   loginButton: {
-    backgroundColor: "#2DD4BF", // Teal color from image
+    backgroundColor: "#2DD4BF",
     borderRadius: 20,
     height: 60,
     justifyContent: "center",

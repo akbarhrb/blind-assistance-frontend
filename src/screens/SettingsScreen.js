@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback } from "react";
 import {
   SafeAreaView,
   StyleSheet,
@@ -11,19 +11,24 @@ import {
   Alert,
 } from "react-native";
 import { ArrowLeft, Globe, Volume2, ChevronDown, LogOut } from "lucide-react-native";
+import * as Speech from "expo-speech";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 
 const SettingsScreen = ({ navigation }) => {
-  const [faceDetection, setFaceDetection] = useState(true);
-  const [objectDetection, setObjectDetection] = useState(true);
-  const [highContrast, setHighContrast] = useState(true);
+  const [faceDetection, setFaceDetection] = React.useState(true);
+  const [objectDetection, setObjectDetection] = React.useState(true);
+  const [highContrast, setHighContrast] = React.useState(true);
   const { signOut } = useAuth();
+  const { language, setLanguage, strings, isArabic, languageConfig } = useLanguage();
+  const t = strings.settings;
+  const common = strings.common;
 
   const handleLogout = () => {
-    Alert.alert("Log out", "Are you sure you want to log out?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t.logoutTitle, t.logoutMessage, [
+      { text: common.cancel, style: "cancel" },
       {
-        text: "Log out",
+        text: t.logout,
         style: "destructive",
         onPress: async () => {
           await signOut();
@@ -36,62 +41,79 @@ const SettingsScreen = ({ navigation }) => {
     ]);
   };
 
+  const handleTestVoice = useCallback(() => {
+    Speech.stop();
+    Speech.speak(t.testVoicePhrase, {
+      language: languageConfig.speechLocale,
+      volume: 1,
+      rate: 0.95,
+      pitch: 1,
+      useApplicationAudioSession: false,
+    });
+  }, [languageConfig.speechLocale, t.testVoicePhrase]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" />
-      
-      {/* Header */}
+
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation?.goBack()}>
           <ArrowLeft size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
+        <Text style={styles.headerTitle}>{t.title}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        
-        {/* Language Section */}
-        <Text style={styles.sectionLabel}>Language</Text>
+        <Text style={styles.sectionLabel}>{t.language}</Text>
         <View style={styles.card}>
           <View style={styles.languageRow}>
             <View style={styles.langLeft}>
               <Globe size={22} color="#2DD4BF" style={styles.iconMargin} />
-              <Text style={styles.cardText}>English</Text>
+              <Text style={styles.cardText}>{isArabic ? t.arabic : t.english}</Text>
             </View>
-            <TouchableOpacity style={styles.langToggleActive}>
-              <Text style={styles.langToggleText}>العربية</Text>
-            </TouchableOpacity>
+            <View style={styles.languageButtons}>
+              <TouchableOpacity
+                style={[styles.langToggle, language === "en" && styles.langToggleActive]}
+                onPress={() => setLanguage("en")}
+              >
+                <Text style={styles.langToggleText}>{t.english}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.langToggle, language === "ar" && styles.langToggleActive]}
+                onPress={() => setLanguage("ar")}
+              >
+                <Text style={styles.langToggleText}>{t.arabic}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
-        {/* Voice Section */}
-        <Text style={styles.sectionLabel}>Voice</Text>
+        <Text style={styles.sectionLabel}>{t.voice}</Text>
         <View style={styles.card}>
           <View style={styles.voiceControlGroup}>
-            <Text style={styles.innerLabel}>Speed</Text>
+            <Text style={styles.innerLabel}>{t.speed}</Text>
             <View style={styles.sliderTrack}>
               <View style={styles.sliderFill} />
               <View style={styles.sliderThumb} />
             </View>
-            
-            <Text style={[styles.innerLabel, {marginTop: 20}]}>Voice Type</Text>
+
+            <Text style={[styles.innerLabel, { marginTop: 20 }]}>{t.voiceType}</Text>
             <View style={styles.dropdown}>
-              <Text style={styles.cardText}>Male</Text>
+              <Text style={styles.cardText}>{t.male}</Text>
               <ChevronDown size={20} color="#94A3B8" />
             </View>
 
-            <TouchableOpacity style={styles.testVoiceButton}>
+            <TouchableOpacity style={styles.testVoiceButton} onPress={handleTestVoice}>
               <Volume2 size={20} color="#FFFFFF" style={styles.iconMargin} />
-              <Text style={styles.testVoiceText}>Test Voice</Text>
+              <Text style={styles.testVoiceText}>{t.testVoice}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Detection Section */}
-        <Text style={styles.sectionLabel}>Detection</Text>
+        <Text style={styles.sectionLabel}>{t.detection}</Text>
         <View style={styles.card}>
           <View style={styles.switchRow}>
-            <Text style={styles.cardText}>Face Detection</Text>
+            <Text style={styles.cardText}>{t.faceDetection}</Text>
             <Switch
               value={faceDetection}
               onValueChange={setFaceDetection}
@@ -99,8 +121,8 @@ const SettingsScreen = ({ navigation }) => {
               thumbColor="#FFFFFF"
             />
           </View>
-          <View style={[styles.switchRow, {marginTop: 15}]}>
-            <Text style={styles.cardText}>Object Detection</Text>
+          <View style={[styles.switchRow, { marginTop: 15 }]}>
+            <Text style={styles.cardText}>{t.objectDetection}</Text>
             <Switch
               value={objectDetection}
               onValueChange={setObjectDetection}
@@ -110,11 +132,10 @@ const SettingsScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Accessibility Section */}
-        <Text style={styles.sectionLabel}>Accessibility</Text>
+        <Text style={styles.sectionLabel}>{t.accessibility}</Text>
         <View style={styles.card}>
           <View style={styles.switchRow}>
-            <Text style={styles.cardText}>High Contrast Mode</Text>
+            <Text style={styles.cardText}>{t.highContrast}</Text>
             <Switch
               value={highContrast}
               onValueChange={setHighContrast}
@@ -122,20 +143,18 @@ const SettingsScreen = ({ navigation }) => {
               thumbColor="#FFFFFF"
             />
           </View>
-          <Text style={[styles.innerLabel, {marginTop: 20}]}>Text Size</Text>
+          <Text style={[styles.innerLabel, { marginTop: 20 }]}>{t.textSize}</Text>
           <View style={styles.dropdown}>
-            <Text style={styles.cardText}>Normal</Text>
+            <Text style={styles.cardText}>{t.normal}</Text>
             <ChevronDown size={20} color="#94A3B8" />
           </View>
         </View>
 
-        {/* Logout */}
-        <Text style={styles.sectionLabel}>Account</Text>
+        <Text style={styles.sectionLabel}>{t.account}</Text>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <LogOut size={20} color="#F8FAFC" style={styles.iconMargin} />
-          <Text style={styles.logoutText}>Log out</Text>
+          <Text style={styles.logoutText}>{t.logout}</Text>
         </TouchableOpacity>
-
       </ScrollView>
     </SafeAreaView>
   );
@@ -181,20 +200,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 12,
   },
   langLeft: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
   },
-  langToggleActive: {
+  languageButtons: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  langToggle: {
     backgroundColor: "#334155",
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  langToggleActive: {
+    borderColor: "#2DD4BF",
   },
   langToggleText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
   },
   cardText: {

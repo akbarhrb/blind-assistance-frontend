@@ -12,8 +12,11 @@ import {
 import { ArrowLeft, User, Box } from "lucide-react-native";
 import { useIsFocused } from "@react-navigation/native";
 import { apiRequest } from "../utils/api";
+import { useLanguage } from "../context/LanguageContext";
 
 const LogsScreen = ({ navigation }) => {
+  const { strings } = useLanguage();
+  const t = strings.logs;
   const [activeFilter, setActiveFilter] = useState("all");
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -42,22 +45,20 @@ const LogsScreen = ({ navigation }) => {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" />
 
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack()}>
           <ArrowLeft size={24} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Detection Log</Text>
+        <Text style={styles.headerTitle}>{t.title}</Text>
       </View>
 
-      {/* Filter Tabs */}
       <View style={styles.filterContainer}>
         <TouchableOpacity
           style={[styles.filterTab, activeFilter === "all" && styles.activeFilter]}
           onPress={() => setActiveFilter("all")}
         >
           <Text style={activeFilter === "all" ? styles.activeFilterText : styles.filterText}>
-            All
+            {t.all}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -65,7 +66,7 @@ const LogsScreen = ({ navigation }) => {
           onPress={() => setActiveFilter("face")}
         >
           <Text style={activeFilter === "face" ? styles.activeFilterText : styles.filterText}>
-            Faces
+            {t.faces}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -73,17 +74,16 @@ const LogsScreen = ({ navigation }) => {
           onPress={() => setActiveFilter("object")}
         >
           <Text style={activeFilter === "object" ? styles.activeFilterText : styles.filterText}>
-            Objects
+            {t.objects}
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Scrollable Log List */}
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={true}>
         {loading ? (
           <ActivityIndicator color="#2DD4BF" style={{ marginTop: 20 }} />
         ) : logs.length === 0 ? (
-          <Text style={styles.emptyText}>No logs yet.</Text>
+          <Text style={styles.emptyText}>{t.empty}</Text>
         ) : (
           logs.map((log) => (
             <View key={log.id} style={styles.logCard}>
@@ -101,9 +101,7 @@ const LogsScreen = ({ navigation }) => {
               </View>
               <View style={styles.textContainer}>
                 <Text style={styles.itemName}>{log.label}</Text>
-                <Text style={styles.itemTime}>
-                  {new Date(log.created_at).toLocaleString()}
-                </Text>
+                <Text style={styles.itemTime}>{new Date(log.created_at).toLocaleString()}</Text>
               </View>
             </View>
           ))
