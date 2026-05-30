@@ -1,7 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL;
+const rawApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+
+export const API_BASE_URL = rawApiBaseUrl?.trim().replace(/\/+$/, "");
+
+const buildUrl = (path) => {
+  if (!API_BASE_URL) {
+    throw new Error(
+      "Missing EXPO_PUBLIC_API_BASE_URL. Set it in .env and restart Expo so the value is bundled into the app."
+    );
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE_URL}${normalizedPath}`;
+};
 
 const TOKEN_KEY = "auth:token";
 const USER_KEY = "auth:user";
@@ -38,19 +50,42 @@ export const apiRequest = async (path, options = {}) => {
     headers["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: options.method || "GET",
-    headers,
-    body: options.body,
-  });
+  const url = buildUrl(path);
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: options.method || "GET",
+      headers,
+      body: options.body,
+    });
+  } catch (error) {
+    throw new Error(
+      `Network request failed for ${url}. Check that the backend is running and that EXPO_PUBLIC_API_BASE_URL is reachable from the device/emulator.`
+    );
+  }
 
   const contentType = response.headers.get("content-type") || "";
   const isJson = contentType.includes("application/json");
-  const data = isJson ? await response.json() : await response.text();
+  const rawText = await response.text();
+  let data = rawText;
+
+  if (isJson && rawText) {
+    try {
+      data = JSON.parse(rawText);
+    } catch (error) {
+      data = rawText;
+    }
+  }
 
   if (!response.ok) {
-    const detail = data?.detail || data?.message || "Request failed";
-    throw new Error(detail);
+    const detail =
+      data?.detail ||
+      data?.message ||
+      (typeof data === "string" && data.trim() ? data.trim() : null) ||
+      `Request failed with status ${response.status}`;
+
+    throw new Error(`${detail} (${response.status} ${response.statusText})`);
   }
 
   return data;

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ActivityIndicator } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
@@ -10,7 +10,11 @@ import {
   ListTodo 
 } from "lucide-react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as Speech from "expo-speech";
+import { useIsFocused } from "@react-navigation/native";
+import Svg, { Rect, Text as SvgText } from "react-native-svg";
 import { useAuth } from "../context/AuthContext";
+import { apiRequest } from "../utils/api";
 
 // Screen Imports
 import RegisterScreen from "../screens/RegisterScreen";
@@ -25,6 +29,15 @@ const Stack = createStackNavigator();
 
 const HomeScreen = ({ navigation }) => {
   const [permission, requestPermission] = useCameraPermissions();
+  const [detectionLabel, setDetectionLabel] = useState("Scanning...");
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [layout, setLayout] = useState({ width: 0, height: 0 });
+  const [boxes, setBoxes] = useState([]);
+  const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
+  const cameraRef = useRef(null);
+  const isDetectingRef = useRef(false);
+  const lastSpokenRef = useRef("");
+  const isFocused = useIsFocused();
   const { isLoggedIn } = useAuth();
 
   useEffect(() => {
@@ -35,6 +48,123 @@ const HomeScreen = ({ navigation }) => {
       requestPermission();
     }
   }, [permission, requestPermission]);
+
+  const formatLabel = (label) => {
+    if (!label || typeof label !== "string") {
+      return "Object";
+    }
+
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  };
+
+  const speakDetection = useCallback((text) => {
+    if (!text || lastSpokenRef.current === text) {
+      return;
+    }
+
+    lastSpokenRef.current = text;
+    Speech.stop();
+    Speech.speak(text, {
+      language: "en-US",
+      rate: 0.95,
+      pitch: 1,
+    });
+  }, []);
+
+  const runDetection = useCallback(async () => {
+    if (isDetectingRef.current || !cameraRef.current || !permission?.granted) {
+      return;
+    }
+
+    try {
+      isDetectingRef.current = true;
+      setIsDetecting(true);
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.5,
+        skipProcessing: true,
+      });
+
+      if (!photo?.uri) {
+        return;
+      }
+
+      if (photo.width && photo.height) {
+        setImageSize({ width: photo.width, height: photo.height });
+      }
+
+      const form = new FormData();
+      form.append("image", {
+        uri: photo.uri,
+        name: "frame.jpg",
+        type: "image/jpeg",
+      });
+
+      const result = await apiRequest("/detect/objects", {
+        method: "POST",
+        body: form,
+        isForm: true,
+      });
+
+      const detectedBoxes = Array.isArray(result?.boxes) ? result.boxes : [];
+      setBoxes(detectedBoxes);
+      if (detectedBoxes.length === 0) {
+        const noObjectsText = "No objects detected";
+        setDetectionLabel(noObjectsText);
+        speakDetection(noObjectsText);
+        return;
+      }
+
+      const bestBox = detectedBoxes.reduce((currentBest, box) => {
+        if (!currentBest) {
+          return box;
+        }
+
+        const currentScore = typeof box?.confidence === "number" ? box.confidence : 0;
+        const bestScore = typeof currentBest?.confidence === "number" ? currentBest.confidence : 0;
+        return currentScore > bestScore ? box : currentBest;
+      }, null);
+
+      const spokenText = `${formatLabel(bestBox?.label)} detected`;
+      setDetectionLabel(spokenText);
+      speakDetection(spokenText);
+    } catch (error) {
+      setDetectionLabel("Detection unavailable");
+    } finally {
+      isDetectingRef.current = false;
+      setIsDetecting(false);
+    }
+  }, [permission?.granted, speakDetection]);
+
+  const scaleBox = (box) => {
+    const scaleX = layout.width / imageSize.width;
+    const scaleY = layout.height / imageSize.height;
+    return {
+      ...box,
+      x: box.x * scaleX,
+      y: box.y * scaleY,
+      width: box.width * scaleX,
+      height: box.height * scaleY,
+    };
+  };
+
+  useEffect(() => {
+    if (!isFocused || !permission?.granted) {
+      return;
+    }
+
+    runDetection();
+    const interval = setInterval(runDetection, 2500);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [isFocused, permission?.granted, runDetection]);
+
+  useEffect(() => {
+    return () => {
+      Speech.stop();
+    };
+  }, []);
 
   const guardedNavigate = (routeName) => {
     if (!isLoggedIn) {
@@ -59,28 +189,68 @@ const HomeScreen = ({ navigation }) => {
       <View style={styles.content}>
         {/* Detection Alert Badge */}
         <View style={styles.alertBadge}>
-          <Text style={styles.alertText}>Chair detected</Text>
+          <Text style={styles.alertText}>
+            {isDetecting ? "Detecting..." : detectionLabel}
+          </Text>
         </View>
 
         {/* Audio Wave Visualizer Placeholder */}
         <AudioVisualizer />
 
         {/* Camera Preview */}
-        <View style={styles.cameraPreview}>
+        <View
+          style={styles.cameraPreview}
+          onLayout={(event) => {
+            const { width, height } = event.nativeEvent.layout;
+            setLayout({ width, height });
+          }}
+        >
           {permission?.granted ? (
-            <CameraView style={styles.camera} facing="back" />
+            <CameraView ref={cameraRef} style={styles.camera} facing="back" />
           ) : (
             <View style={styles.cameraFallback}>
-              <Text style={styles.cameraFallbackText}>Enable camera access</Text>
+              <Text style={styles.cameraFallbackText}>Enable camera access to start detection</Text>
             </View>
           )}
+
+          <Svg width={layout.width} height={layout.height} style={styles.overlay} pointerEvents="none">
+            {boxes.map((rawBox, index) => {
+              const box = scaleBox(rawBox);
+              const label = `${rawBox.label} ${Math.round((rawBox.confidence || 0) * 100)}%`;
+              const labelX = box.x + 8;
+              const labelY = Math.max(16, box.y - 8);
+
+              return (
+                <React.Fragment key={`${rawBox.label}-${index}`}>
+                  <Rect
+                    x={box.x}
+                    y={box.y}
+                    width={box.width}
+                    height={box.height}
+                    stroke="#FFFFFF"
+                    strokeWidth={3}
+                    fill="rgba(255,255,255,0.04)"
+                    rx={10}
+                    ry={10}
+                  />
+                  <SvgText x={labelX} y={labelY} fill="#FFFFFF" fontSize={16} fontWeight="700">
+                    {label}
+                  </SvgText>
+                </React.Fragment>
+              );
+            })}
+          </Svg>
         </View>
       </View>
 
       {/* Mic Button Section */}
       <View style={styles.micSection}>
-        <TouchableOpacity style={styles.micButton}>
-          <Mic size={32} color="#0F172A" />
+        <TouchableOpacity style={styles.micButton} onPress={runDetection}>
+          {isDetecting ? (
+            <ActivityIndicator color="#0F172A" />
+          ) : (
+            <Mic size={32} color="#0F172A" />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -211,6 +381,9 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.12)",
   },
   camera: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  overlay: {
     ...StyleSheet.absoluteFillObject,
   },
   cameraFallback: {

@@ -102,6 +102,7 @@ const AddObjectScreen = ({ navigation }) => {
       setCategory("");
       setImageUri(null);
     } catch (error) {
+      console.log(error);
       Alert.alert("Save failed", error.message || "Unable to save object.");
     } finally {
       setLoading(false);
