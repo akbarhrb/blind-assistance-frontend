@@ -27,6 +27,7 @@ const HomeScreen = ({ navigation }) => {
     const homeStrings = strings.home;
     const navStrings = strings.navigation;
     const [isCameraReady, setIsCameraReady] = useState(false);
+    const [isCameraMounted, setIsCameraMounted] = useState(false);
 
     useEffect(() => {
         if (!permission) {
@@ -169,12 +170,31 @@ const HomeScreen = ({ navigation }) => {
     };
 
     useEffect(() => {
+        let timer = null;
+
+        if (isFocused) {
+            // Wait 300ms for the native slide/fade back animation to finish
+            timer = setTimeout(() => {
+                setIsCameraMounted(true);
+            }, 300);
+        } else {
+            // Turn off immediately when leaving to free up hardware
+            setIsCameraMounted(false);
+            setIsCameraReady(false);
+        }
+
+        return () => {
+            if (timer) clearTimeout(timer);
+        };
+    }, [isFocused]);
+
+    useEffect(() => {
         let timeoutId = null;
         let active = true;
 
         const tick = async () => {
-            // Check all three conditions before taking a picture
-            if (!active || !isFocused || !isCameraReady) return;
+            // Safety check all conditions
+            if (!active || !isFocused || !isCameraReady || !isCameraMounted) return;
 
             await runDetection();
 
@@ -183,15 +203,13 @@ const HomeScreen = ({ navigation }) => {
             }
         };
 
-        if (isFocused && permission?.granted && isCameraReady) {
-            // Camera is verified ready by the hardware. Start immediately.
+        if (isFocused && permission?.granted && isCameraReady && isCameraMounted) {
             tick();
         } else {
-            // CLEANUP: User navigated away or camera unmounted.
+            // Clean up locks when screen is inactive
             setBoxes([]);
-            setIsCameraReady(false); // Reset ready state
-            isDetectingRef.current = false; // CRITICAL: Release the lock
-            setIsDetecting(false); // Reset the UI loader
+            isDetectingRef.current = false;
+            setIsDetecting(false);
         }
 
         return () => {
@@ -200,7 +218,7 @@ const HomeScreen = ({ navigation }) => {
                 clearTimeout(timeoutId);
             }
         };
-    }, [isFocused, permission?.granted, isCameraReady, runDetection]);
+    }, [isFocused, permission?.granted, isCameraReady, isCameraMounted, runDetection]);
 
     useEffect(() => {
         if (detectionStatus === "scanning") {
@@ -265,8 +283,8 @@ const HomeScreen = ({ navigation }) => {
                         setLayout({ width, height });
                     }}
                 >
-                    {permission?.granted && isFocused ? (
-                        <CameraView onCameraReady={() => {
+                    {permission?.granted && isCameraMounted ? (
+                        <CameraView key={isFocused ? "camera-active" : "camera-inactive"} onCameraReady={() => {
                             setIsCameraReady(true);
                         }} ref={cameraRef} style={styles.camera} facing="back" />
                     ) : (
