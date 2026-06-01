@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   SafeAreaView,
   StyleSheet,
@@ -19,12 +19,12 @@ import {
   ChevronDown,
   Pencil,
   Trash2,
-  UploadCloud,
 } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useIsFocused } from "@react-navigation/native";
 import { apiRequest } from "../utils/api";
 import { useLanguage } from "../context/LanguageContext";
+import { CameraView, useCameraPermissions } from "expo-camera";
 
 const buildImagePart = (uri, fallbackName = "object.jpg") => {
   const name = uri.split("/").pop() || fallbackName;
@@ -41,10 +41,12 @@ const AddObjectScreen = ({ navigation }) => {
   const common = strings.common;
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
-  const [imageUri, setImageUri] = useState(null);
+  const [imageUri, setImageUri] = useState(null); // Consolidated image state
   const [objects, setObjects] = useState([]);
   const [loading, setLoading] = useState(false);
   const isFocused = useIsFocused();
+  const cameraRef = useRef(null);
+  const [permission, requestPermission] = useCameraPermissions();
 
   useEffect(() => {
     if (isFocused) {
@@ -74,7 +76,31 @@ const AddObjectScreen = ({ navigation }) => {
     });
 
     if (!result.canceled && result.assets?.length) {
-      setImageUri(result.assets[0].uri);
+      setImageUri(result.assets[0].uri); // Saves to imageUri
+    }
+  };
+
+  const handleCapture = async () => {
+    if (!permission?.granted) {
+      const updatedPermission = await requestPermission();
+      
+      if (!updatedPermission.granted) {
+        Alert.alert(t.permissionRequired, t.cameraPermission);
+        return;
+      }
+    } 
+
+    if (!cameraRef.current) {
+      return;
+    }
+
+    try {
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
+      if (photo?.uri) {
+        setImageUri(photo.uri); // Now saves to the exact same imageUri state
+      }
+    } catch (error) {
+      Alert.alert(t.captureFailed, t.captureFailedBody);
     }
   };
 
@@ -104,7 +130,7 @@ const AddObjectScreen = ({ navigation }) => {
       setObjects((prev) => [created, ...prev]);
       setName("");
       setCategory("");
-      setImageUri(null);
+      setImageUri(null); // Clears the preview automatically upon success
     } catch (error) {
       Alert.alert(t.saveFailed, error.message || t.saveFailedBody);
     } finally {
@@ -135,17 +161,25 @@ const AddObjectScreen = ({ navigation }) => {
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.uploadMain}>
           {imageUri ? (
-            <Image source={{ uri: imageUri }} style={styles.previewImage} />
+            // Both methods now feed into imageUri, so both display perfectly here
+            <View style={styles.previewContainer}>
+              <Image source={{ uri: imageUri }} style={styles.previewImage} />
+              <TouchableOpacity style={styles.retakeButton} onPress={() => setImageUri(null)}>
+                <Text style={styles.retakeText}>Reset Photo</Text>
+              </TouchableOpacity>
+            </View>
+          ) : permission?.granted ? (
+            <CameraView ref={cameraRef} style={styles.camera} facing="front" />
           ) : (
-            <>
-              <UploadCloud size={48} color="#94A3B8" />
-              <Text style={styles.uploadText}>{t.uploadOrCapture}</Text>
-            </>
+            <View style={styles.cameraFallback}>
+              <Text style={styles.cameraFallbackText}>{t.cameraFallback}</Text>
+            </View>
           )}
         </View>
 
         <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity style={styles.actionButton} onPress={handleCapture}>
+            {/* Removed the invalid cameraRef from the Icon line below */}
             <Camera size={20} color="#FFFFFF" style={styles.buttonIcon} />
             <Text style={styles.buttonText}>{common.capture}</Text>
           </TouchableOpacity>
@@ -234,14 +268,41 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.05)",
     overflow: "hidden",
   },
-  previewImage: {
+  camera: {
     width: "100%",
     height: "100%",
   },
-  uploadText: {
+  previewContainer: {
+    width: "100%",
+    height: "100%",
+    position: "relative",
+  },
+  previewImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  retakeButton: {
+    position: "absolute",
+    bottom: 10,
+    right: 10,
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  retakeText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  cameraFallback: {
+    alignItems: "center",
+    padding: 20,
+  },
+  cameraFallbackText: {
     color: "#94A3B8",
-    marginTop: 10,
-    fontSize: 16,
+    textAlign: "center",
   },
   actionRow: {
     flexDirection: "row",
@@ -317,16 +378,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  objectName: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  objectCategory: {
-    color: "#64748B",
-    fontSize: 14,
-    marginTop: 4,
-  },
+  objectInfo: {},
   iconGroup: {
     flexDirection: "row",
   },
@@ -334,7 +386,6 @@ const styles = StyleSheet.create({
     marginLeft: 15,
     padding: 5,
   },
-  objectInfo: {},
 });
 
 export default AddObjectScreen;

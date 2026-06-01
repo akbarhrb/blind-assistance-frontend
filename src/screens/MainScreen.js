@@ -24,38 +24,46 @@ const MainScreen = () => {
     }
   }, [permission, requestPermission]);
 
-  useEffect(() => {
-    if (!isFocused || !permission?.granted) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      return;
-    }
+  // useEffect(() => {
+  //   let timeoutId = null;
 
-    if (!intervalRef.current) {
-      intervalRef.current = setInterval(() => {
-        runDetection();
-      }, 2000);
-    }
+  //   const loopDetection = async () => {
+  //     // Only capture if the screen is focused, permission is good, and the hardware is bound
+  //     if (isFocused && permission?.granted && cameraRef.current && layout.width > 0 && !isDetecting) {
+  //       await runDetection();
+  //     }
 
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [isFocused, permission?.granted]);
+  //     // Queue the next cycle only if we are still looking at this page
+  //     if (isFocused) {
+  //       timeoutId = setTimeout(loopDetection, 2000);
+  //     }
+  //   };
+
+  //   if (isFocused && permission?.granted) {
+  //     // Small 300ms cushion delay to let the native hardware layer shutter open cleanly
+  //     timeoutId = setTimeout(loopDetection, 300);
+  //   }
+
+  //   return () => {
+  //     if (timeoutId) {
+  //       clearTimeout(timeoutId);
+  //     }
+  //   };
+  // }, [isFocused, permission?.granted, layout.width, isDetecting]);
 
   const runDetection = async () => {
-    if (isDetecting || !cameraRef.current) {
+    // Added !isFocused safety check to protect background cycles
+    if (isDetecting || !cameraRef.current || layout.width === 0 || !isFocused) {
       return;
     }
 
     try {
       setIsDetecting(true);
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.5, skipProcessing: true });
+
+      // If the hardware stream isn't fully ready yet, photo might be null
       if (!photo?.uri) {
+        setIsDetecting(false);
         return;
       }
 
@@ -78,21 +86,31 @@ const MainScreen = () => {
 
       setBoxes(result.boxes || []);
     } catch (error) {
-      // Silent fail; keep last boxes
+      // Silent fail
     } finally {
       setIsDetecting(false);
     }
   };
 
+  // Corrected mapping algorithm that factors in the "Aspect Fill" resize behavior of the camera view
   const scaleBox = (box) => {
+    if (layout.width === 0 || layout.height === 0) return box;
+
     const scaleX = layout.width / imageSize.width;
     const scaleY = layout.height / imageSize.height;
+
+    // Determine if the camera preview container is cropping horizontally or vertically
+    const scale = Math.max(scaleX, scaleY);
+
+    const offsetX = (layout.width - imageSize.width * scale) / 2;
+    const offsetY = (layout.height - imageSize.height * scale) / 2;
+
     return {
       ...box,
-      x: box.x * scaleX,
-      y: box.y * scaleY,
-      width: box.width * scaleX,
-      height: box.height * scaleY,
+      x: box.x * scale + offsetX,
+      y: box.y * scale + offsetY,
+      width: box.width * scale,
+      height: box.height * scale,
     };
   };
 
@@ -114,14 +132,18 @@ const MainScreen = () => {
         setLayout({ width, height });
       }}
     >
-      <CameraView ref={cameraRef} style={styles.camera} facing="back" />
-
+      {/* 16:9 ratio requested explicitly to improve backend matching predictions */}
+      {/* Re-mounts the camera cleanly only when this page is actively focused */}
+      {
+        isFocused && permission.granted &&
+        <CameraView ref={cameraRef} style={styles.camera} facing="back" ratio="16:9" />
+      }
       <Svg width={layout.width} height={layout.height} style={styles.overlay} pointerEvents="none">
         {boxes.map((rawBox, index) => {
           const box = scaleBox(rawBox);
           const label = `${rawBox.label} ${Math.round(rawBox.confidence * 100)}%`;
           const labelX = box.x + 8;
-          const labelY = Math.max(16, box.y - 8);
+          const labelY = Math.max(20, box.y - 8); // Added safety padding for higher labels
 
           return (
             <React.Fragment key={`${rawBox.label}-${index}`}>
@@ -130,13 +152,13 @@ const MainScreen = () => {
                 y={box.y}
                 width={box.width}
                 height={box.height}
-                stroke="#FFFFFF"
+                stroke="#2DD4BF" // Swapped white for bright teal to match UI styles nicely
                 strokeWidth={3}
-                fill="rgba(255,255,255,0.04)"
+                fill="rgba(45, 212, 191, 0.1)" // Consistent with brand highlight colors
                 rx={10}
                 ry={10}
               />
-              <SvgText x={labelX} y={labelY} fill="#FFFFFF" fontSize={16} fontWeight="700">
+              <SvgText x={labelX} y={labelY} fill="#2DD4BF" fontSize={16} fontWeight="700">
                 {label}
               </SvgText>
             </React.Fragment>
@@ -144,7 +166,7 @@ const MainScreen = () => {
         })}
       </Svg>
 
-      <TouchableOpacity style={styles.detectButton} onPress={runDetection}>
+      <TouchableOpacity style={styles.detectButton} onPress={runDetection} disabled={isDetecting}>
         {isDetecting ? (
           <ActivityIndicator color="#0F172A" />
         ) : (
@@ -173,13 +195,16 @@ const styles = StyleSheet.create({
   },
   root: {
     flex: 1,
-    backgroundColor: "#000000",
+    // backgroundColor: "#000000",
   },
   camera: {
-    ...StyleSheet.absoluteFillObject,
+    // ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 10, // Explicitly forces the Svg overlay to sit directly on top of the native video channel
   },
   detectButton: {
     position: "absolute",
@@ -189,6 +214,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 24,
+    zIndex: 20, // Forces the button to stay interactable above the Svg canvas layer
   },
   detectButtonText: {
     color: "#0F172A",

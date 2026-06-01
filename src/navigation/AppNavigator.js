@@ -38,6 +38,7 @@ const HomeScreen = ({ navigation }) => {
   const { strings, languageConfig, speechRate, voiceType, speechVoiceId } = useLanguage();
   const homeStrings = strings.home;
   const navStrings = strings.navigation;
+  const [isCameraReady, setIsCameraReady] = useState(false);
 
   useEffect(() => {
     if (!permission) {
@@ -108,6 +109,13 @@ const HomeScreen = ({ navigation }) => {
         isForm: true,
       });
 
+      // Add this safety bailout!
+      if (!isFocused) {
+        isDetectingRef.current = false;
+        setIsDetecting(false);
+        return;
+      }
+
       const detectedBoxes = Array.isArray(result?.boxes) ? result.boxes : [];
       setBoxes(detectedBoxes);
 
@@ -140,32 +148,71 @@ const HomeScreen = ({ navigation }) => {
       isDetectingRef.current = false;
       setIsDetecting(false);
     }
-  }, [permission?.granted, speakDetection, homeStrings.detectedSuffix, homeStrings.noObjectsSpeech]);
+  }, [permission?.granted, isFocused, speakDetection, homeStrings.detectedSuffix, homeStrings.noObjectsSpeech]);
 
-  const scaleBox = (box) => {
-    const scaleX = layout.width / imageSize.width;
-    const scaleY = layout.height / imageSize.height;
+const scaleBox = (box) => {
+    // Prevent divide-by-zero on initial render
+    if (!layout.height || !imageSize.height) return box;
+
+    const viewRatio = layout.width / layout.height;
+    const imageRatio = imageSize.width / imageSize.height;
+    
+    let scale, offsetX = 0, offsetY = 0;
+
+    if (imageRatio > viewRatio) {
+      // Image is wider than the view. It gets cropped on the sides.
+      scale = layout.height / imageSize.height;
+      const renderedWidth = imageSize.width * scale;
+      offsetX = (layout.width - renderedWidth) / 2; 
+    } else {
+      // Image is taller than the view. It gets cropped on the top/bottom.
+      scale = layout.width / imageSize.width;
+      const renderedHeight = imageSize.height * scale;
+      offsetY = (layout.height - renderedHeight) / 2;
+    }
+
     return {
       ...box,
-      x: box.x * scaleX,
-      y: box.y * scaleY,
-      width: box.width * scaleX,
-      height: box.height * scaleY,
+      x: (box.x * scale) + offsetX,
+      y: (box.y * scale) + offsetY,
+      width: box.width * scale,
+      height: box.height * scale,
     };
   };
 
   useEffect(() => {
-    if (!isFocused || !permission?.granted) {
-      return;
+    let timeoutId = null;
+    let active = true;
+
+    const tick = async () => {
+      // Check all three conditions before taking a picture
+      if (!active || !isFocused || !isCameraReady) return;
+
+      await runDetection();
+
+      if (active) {
+        timeoutId = setTimeout(tick, 2500);
+      }
+    };
+
+    if (isFocused && permission?.granted && isCameraReady) {
+      // Camera is verified ready by the hardware. Start immediately.
+      tick();
+    } else {
+      // CLEANUP: User navigated away or camera unmounted.
+      setBoxes([]);
+      setIsCameraReady(false); // Reset ready state
+      isDetectingRef.current = false; // CRITICAL: Release the lock
+      setIsDetecting(false); // Reset the UI loader
     }
 
-    runDetection();
-    const interval = setInterval(runDetection, 2500);
-
     return () => {
-      clearInterval(interval);
+      active = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
-  }, [isFocused, permission?.granted, runDetection]);
+  }, [isFocused, permission?.granted, isCameraReady, runDetection]);
 
   useEffect(() => {
     if (detectionStatus === "scanning") {
@@ -231,7 +278,9 @@ const HomeScreen = ({ navigation }) => {
           }}
         >
           {permission?.granted ? (
-            <CameraView ref={cameraRef} style={styles.camera} facing="back" />
+            isFocused && <CameraView onCameraReady={() => {
+              setIsCameraReady(true);
+            }} ref={cameraRef} style={styles.camera} facing="back" />
           ) : (
             <View style={styles.cameraFallback}>
               <Text style={styles.cameraFallbackText}>{homeStrings.cameraFallback}</Text>
