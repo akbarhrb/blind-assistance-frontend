@@ -149,7 +149,7 @@ const RegisterFacesScreen = ({ navigation }) => {
       <StatusBar barStyle="light-content" />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation?.goBack()}>
+        <TouchableOpacity onPress={() => navigation?.navigate("Home")}>
           <ArrowLeft size={28} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t.title}</Text>
