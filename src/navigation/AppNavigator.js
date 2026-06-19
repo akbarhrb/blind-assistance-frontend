@@ -419,8 +419,8 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   cameraPreview: {
-    width: 240,
-    height: 160,
+    width: 340,
+    height: 240,
     borderRadius: 18,
     overflow: "hidden",
     marginTop: 20,

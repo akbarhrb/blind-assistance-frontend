@@ -88,7 +88,7 @@ const AddObjectScreen = ({ navigation }) => {
         Alert.alert(t.permissionRequired, t.cameraPermission);
         return;
       }
-    } 
+    }    
 
     if (!cameraRef.current) {
       return;

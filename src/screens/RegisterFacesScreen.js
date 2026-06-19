@@ -19,6 +19,8 @@ import {
   Pencil,
   Trash2,
   Upload,
+  Rewind,
+  Repeat,
 } from "lucide-react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
@@ -55,6 +57,10 @@ const RegisterFacesScreen = ({ navigation }) => {
   }, [permission, requestPermission]);
 
   useEffect(() => {
+    fetchFaces();
+  }, []);
+
+  useEffect(() => {
     if (isFocused) {
       fetchFaces();
     }
@@ -62,8 +68,10 @@ const RegisterFacesScreen = ({ navigation }) => {
 
   const fetchFaces = async () => {
     try {
+      setLoading(true);
       await apiRequest("/faces").then((response) => {
-        console.log(response);
+        setLoading(false);
+        setSavedFaces(response);
       });
 
       // setSavedFaces(data);
@@ -126,7 +134,7 @@ const RegisterFacesScreen = ({ navigation }) => {
 
       const token = (await AsyncStorage.getItem(TOKEN_KEY));
 
-      const response = await axios.post(process.env.EXPO_PUBLIC_API_BASE_URL+"/faces/register",form, {
+      const response = await axios.post(process.env.EXPO_PUBLIC_API_BASE_URL + "/faces/register", form, {
         "headers": {
           "Authorization": `Bearer ${token}`,
           "Accept": "application/json"
@@ -142,15 +150,6 @@ const RegisterFacesScreen = ({ navigation }) => {
       Alert.alert(t.saveFailed, error.message || t.saveFailedBody);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleDelete = async (faceId) => {
-    try {
-      await apiRequest(`/faces/${faceId}`, { method: "DELETE" });
-      setSavedFaces((prev) => prev.filter((item) => item.id !== faceId));
-    } catch (error) {
-      Alert.alert(t.deleteFailed, error.message || t.deleteFailedBody);
     }
   };
 
@@ -181,8 +180,18 @@ const RegisterFacesScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.actionButton} onPress={handleCapture}>
-            <Camera size={20} color="#FFFFFF" style={styles.buttonIcon} />
+          <TouchableOpacity style={styles.actionButton} onPress={() => {
+            previewUri ?
+              setPreviewUri(null)
+              :
+              handleCapture();
+          }}>
+            {
+              previewUri ?
+                <Repeat size={20} color="#FFFFFF" style={styles.buttonIcon} />
+                :
+                <Camera size={20} color="#FFFFFF" style={styles.buttonIcon} />
+            }
             <Text style={styles.buttonText}>{previewUri ? common.retake : common.capture}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionButton} onPress={handleUpload}>
@@ -207,29 +216,67 @@ const RegisterFacesScreen = ({ navigation }) => {
 
         <Text style={styles.sectionTitle}>{t.savedFaces}</Text>
 
-        {savedFaces.map((face) => (
-          <View key={face.id} style={styles.faceCard}>
-            <View style={styles.faceInfo}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{face.name?.[0] || "?"}</Text>
-              </View>
-              <Text style={styles.faceName}>{face.name}</Text>
-            </View>
-
-            <View style={styles.actionGroup}>
-              <TouchableOpacity style={styles.iconBtn}>
-                <Pencil size={20} color="#94A3B8" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconBtn} onPress={() => handleDelete(face.id)}>
-                <Trash2 size={20} color="#94A3B8" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))}
+        {savedFaces.length > 0 ?
+          savedFaces.map((face) => (
+            <FaceItemContainer face={face} onDelete={(faceId) => {
+              setSavedFaces(
+                (prev) => prev.filter((item) => item.id !== faceId)
+              );
+            }} />
+          ))
+          :
+          (loading ?
+            <ActivityIndicator />
+            :
+          <Text style={{
+            color:'#adadad',
+            fontSize:16
+          }}>no faces</Text>
+          )
+        }
       </ScrollView>
     </SafeAreaView>
   );
 };
+
+const FaceItemContainer = ({ face, onDelete }) => {
+  const [loading, setLoading] = useState(false);
+
+  const handleDelete = async (faceId) => {
+    try {
+      setLoading(true);
+      await apiRequest(`/faces/${faceId}`, { method: "DELETE" });
+      onDelete(face.id);
+    } catch (error) {
+      Alert.alert(t.deleteFailed, error.message || t.deleteFailedBody);
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <View key={face.id} style={styles.faceCard}>
+      <View style={styles.faceInfo}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{face.name?.[0] || "?"}</Text>
+        </View>
+        <Text style={styles.faceName}>{face.name}</Text>
+      </View>
+
+      <View style={styles.actionGroup}>
+        <TouchableOpacity style={styles.iconBtn}>
+          <Pencil size={20} color="#94A3B8" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} onPress={() => handleDelete(face.id)}>
+          {loading ?
+            <ActivityIndicator />
+            :
+            <Trash2 size={20} color="#94A3B8" />
+          }
+        </TouchableOpacity>
+      </View>
+    </View>
+  )
+}
 
 const styles = StyleSheet.create({
   safeArea: {
