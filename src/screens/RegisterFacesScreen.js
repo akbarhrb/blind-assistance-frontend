@@ -23,8 +23,10 @@ import {
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { useIsFocused } from "@react-navigation/native";
-import { apiRequest } from "../utils/api";
+import { apiRequest, TOKEN_KEY } from "../utils/api";
 import { useLanguage } from "../context/LanguageContext";
+import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const buildImagePart = (uri, fallbackName = "image.jpg") => {
   const name = uri.split("/").pop() || fallbackName;
@@ -60,8 +62,11 @@ const RegisterFacesScreen = ({ navigation }) => {
 
   const fetchFaces = async () => {
     try {
-      const data = await apiRequest("/faces");
-      setSavedFaces(data);
+      await apiRequest("/faces").then((response) => {
+        console.log(response);
+      });
+
+      // setSavedFaces(data);
     } catch (error) {
       setSavedFaces([]);
     }
@@ -119,11 +124,16 @@ const RegisterFacesScreen = ({ navigation }) => {
       form.append("name", name.trim());
       form.append("image", buildImagePart(previewUri, "face.jpg"));
 
-      const created = await apiRequest("/faces/register", {
-        method: "POST",
-        body: form,
-        isForm: true,
+      const token = (await AsyncStorage.getItem(TOKEN_KEY));
+
+      const response = await axios.post(process.env.EXPO_PUBLIC_API_BASE_URL+"/faces/register",form, {
+        "headers": {
+          "Authorization": `Bearer ${token}`,
+          "Accept": "application/json"
+        }
       });
+
+      const created = response.data;
 
       setSavedFaces((prev) => [created, ...prev]);
       setName("");
@@ -147,7 +157,6 @@ const RegisterFacesScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" />
-
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation?.goBack()}>
           <ArrowLeft size={28} color="#FFFFFF" />

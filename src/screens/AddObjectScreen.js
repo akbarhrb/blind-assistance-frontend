@@ -169,7 +169,7 @@ const AddObjectScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
           ) : permission?.granted ? (
-            <CameraView ref={cameraRef} style={styles.camera} facing="front" />
+            <CameraView ref={cameraRef} style={styles.camera} facing="back" />
           ) : (
             <View style={styles.cameraFallback}>
               <Text style={styles.cameraFallbackText}>{t.cameraFallback}</Text>

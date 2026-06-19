@@ -141,6 +141,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#0F172A",
+    overflow:'scroll'
   },
   header: {
     flexDirection: "row",

@@ -120,6 +120,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#0F172A",
+    overflow:'scroll'
   },
   container: {
     flex: 1,

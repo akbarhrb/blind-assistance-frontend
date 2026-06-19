@@ -84,6 +84,13 @@ const MainScreen = () => {
         isForm: true,
       });
 
+      
+      //const result = await apiRequest("/detect/faces", { 
+      // method: "POST",
+      //  body: form,
+      //  isForm: true,
+      //});
+
       setBoxes(result.boxes || []);
     } catch (error) {
       // Silent fail
