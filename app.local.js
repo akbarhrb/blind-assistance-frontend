@@ -21,10 +21,13 @@ export const APP_TRANSLATIONS = {
       scanning: "Scanning...",
       detecting: "Detecting...",
       noObjects: "No objects detected",
+      noDetections: "No faces or objects detected",
       unavailable: "Detection unavailable",
       cameraFallback: "Enable camera access to start detection",
       detectedSuffix: "detected",
       noObjectsSpeech: "No objects detected",
+      noDetectionsSpeech: "No faces or objects detected",
+      faceDetected: "Face detected",
       appTitle: "BlindAssistance",
     },
     settings: {
