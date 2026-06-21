@@ -49,6 +49,17 @@ const HomeScreen = ({ navigation }) => {
         return label.charAt(0).toUpperCase() + label.slice(1);
     };
 
+    const getFaceName = (box) => {
+        const rawName =
+            (typeof box?.person_name === "string" && box.person_name) ||
+            (typeof box?.name === "string" && box.name) ||
+            (typeof box?.label === "string" && box.label) ||
+            (typeof box?.displayName === "string" && box.displayName) ||
+            "";
+
+        return rawName.trim();
+    };
+
     const buildImageForm = (uri) => {
         const form = new FormData();
         form.append("image", {
@@ -115,9 +126,10 @@ const HomeScreen = ({ navigation }) => {
                 ? box.label
                 : typeof box.name === "string"
                     ? box.name
-                    : typeof box.person_name === "string"
-                        ? box.person_name
-                        : kind,
+                : typeof box.person_name === "string"
+                    ? box.person_name
+                    : kind,
+            faceName: kind === "face" ? getFaceName(box) : "",
         };
     };
 
@@ -142,8 +154,8 @@ const HomeScreen = ({ navigation }) => {
         const summaries = [];
 
         if (faceBox) {
-            const faceLabel = formatLabel(faceBox.label);
-            summaries.push(isGenericFaceLabel(faceLabel) ? faceDetectedText : `${faceLabel} ${homeStrings.detectedSuffix}`);
+            const faceName = faceBox.faceName || formatLabel(faceBox.label);
+            summaries.push(isGenericFaceLabel(faceName) ? faceDetectedText : faceName);
         }
 
         if (objectBox) {
@@ -415,7 +427,12 @@ const HomeScreen = ({ navigation }) => {
                     <Svg width={layout.width} height={layout.height} style={styles.overlay} pointerEvents="none">
                         {boxes.map((rawBox, index) => {
                             const box = scaleBox(rawBox);
-                            const label = `${formatLabel(rawBox.label)} ${Math.round((rawBox.confidence || 0) * 100)}%`;
+                            const displayLabel = rawBox.kind === "face" && rawBox.faceName
+                                ? rawBox.faceName
+                                : formatLabel(rawBox.label);
+                            const label = rawBox.kind === "face"
+                                ? displayLabel
+                                : `${displayLabel} ${Math.round((rawBox.confidence || 0) * 100)}%`;
                             const labelX = box.x + 8;
                             const labelY = Math.max(16, box.y - 8);
                             const strokeColor = rawBox.kind === "face" ? "#2DD4BF" : "#F59E0B";
