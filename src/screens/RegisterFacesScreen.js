@@ -25,7 +25,7 @@ import {
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { useIsFocused } from "@react-navigation/native";
-import { apiRequest, TOKEN_KEY } from "../utils/api";
+import { apiRequest, API_BASE_URL, TOKEN_KEY } from "../utils/api";
 import { useLanguage } from "../context/LanguageContext";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -33,6 +33,35 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const buildImagePart = (uri, fallbackName = "image.jpg") => {
   const name = uri.split("/").pop() || fallbackName;
   return { uri, name, type: "image/jpeg" };
+};
+
+const getFaceImageUri = (face) => {
+  const rawUri =
+    face?.image_url ||
+    face?.imageUrl ||
+    face?.image_path ||
+    face?.imagePath ||
+    face?.image ||
+    face?.photo_url ||
+    face?.photoUrl ||
+    face?.photo ||
+    face?.thumbnail ||
+    "";
+
+  if (!rawUri || typeof rawUri !== "string") {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(rawUri) || rawUri.startsWith("file://") || rawUri.startsWith("content://")) {
+    return rawUri;
+  }
+
+  if (!API_BASE_URL) {
+    return rawUri;
+  }
+
+  const normalizedPath = rawUri.startsWith("/") ? rawUri : `/${rawUri}`;
+  return `${API_BASE_URL}${normalizedPath}`;
 };
 
 const RegisterFacesScreen = ({ navigation }) => {
@@ -218,7 +247,7 @@ const RegisterFacesScreen = ({ navigation }) => {
 
         {savedFaces.length > 0 ?
           savedFaces.map((face) => (
-            <FaceItemContainer face={face} onDelete={(faceId) => {
+            <FaceItemContainer key={face.id} face={face} onDelete={(faceId) => {
               setSavedFaces(
                 (prev) => prev.filter((item) => item.id !== faceId)
               );
@@ -241,6 +270,7 @@ const RegisterFacesScreen = ({ navigation }) => {
 
 const FaceItemContainer = ({ face, onDelete }) => {
   const [loading, setLoading] = useState(false);
+  const faceImageUri = getFaceImageUri(face);
 
   const handleDelete = async (faceId) => {
     try {
@@ -248,7 +278,7 @@ const FaceItemContainer = ({ face, onDelete }) => {
       await apiRequest(`/faces/${faceId}`, { method: "DELETE" });
       onDelete(face.id);
     } catch (error) {
-      Alert.alert(t.deleteFailed, error.message || t.deleteFailedBody);
+      Alert.alert("Delete failed", error.message || "Unable to delete.");
     } finally {
       setLoading(false);
     }
@@ -257,7 +287,11 @@ const FaceItemContainer = ({ face, onDelete }) => {
     <View key={face.id} style={styles.faceCard}>
       <View style={styles.faceInfo}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{face.name?.[0] || "?"}</Text>
+          {faceImageUri ? (
+            <Image source={{ uri: faceImageUri }} style={styles.avatarImage} />
+          ) : (
+            <Text style={styles.avatarText}>{face.name?.[0] || "?"}</Text>
+          )}
         </View>
         <Text style={styles.faceName}>{face.name}</Text>
       </View>
@@ -407,6 +441,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 15,
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
   },
   avatarText: {
     color: "#2DD4BF",
