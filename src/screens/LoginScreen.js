@@ -9,6 +9,8 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Eye, Mail, Lock, Volume2, Fingerprint, ScanEye } from "lucide-react-native";
 import { useAuth } from "../context/AuthContext";
@@ -47,72 +49,78 @@ const LoginScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" />
-      <View style={styles.container}>
-        <View style={styles.headerContainer}>
-          <View style={styles.logoCircle}>
-            <ScanEye size={48} color="#2DD4BF" />
-          </View>
-          <View style={styles.fingerprintRow}>
-            <Fingerprint size={20} color="#D97706" style={{ marginHorizontal: 2 }} />
-            <Fingerprint size={20} color="#2DD4BF" style={{ marginHorizontal: 2 }} />
-            <Fingerprint size={20} color="#D97706" style={{ marginHorizontal: 2 }} />
-          </View>
-          <Text style={styles.title}>{t.loginTitle}</Text>
-          <Text style={styles.subtitle}>{t.loginSubtitle}</Text>
-        </View>
-
-        <TouchableOpacity style={styles.voiceGuide}>
-          <Volume2 size={24} color="#2DD4BF" />
-          <Text style={styles.voiceGuideText}>{t.voiceGuide}</Text>
-        </TouchableOpacity>
-
-        <View style={styles.form}>
-          <View style={styles.inputContainer}>
-            <Mail size={20} color="#94A3B8" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder={t.email}
-              placeholderTextColor="#94A3B8"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              value={email}
-              onChangeText={setEmail}
-            />
+    <KeyboardAvoidingView
+    style={{
+      flex:1
+    }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.container}>
+          <View style={styles.headerContainer}>
+            <View style={styles.logoCircle}>
+              <ScanEye size={48} color="#2DD4BF" />
+            </View>
+            <View style={styles.fingerprintRow}>
+              <Fingerprint size={20} color="#D97706" style={{ marginHorizontal: 2 }} />
+              <Fingerprint size={20} color="#2DD4BF" style={{ marginHorizontal: 2 }} />
+              <Fingerprint size={20} color="#D97706" style={{ marginHorizontal: 2 }} />
+            </View>
+            <Text style={styles.title}>{t.loginTitle}</Text>
+            <Text style={styles.subtitle}>{t.loginSubtitle}</Text>
           </View>
 
-          <View style={styles.inputContainer}>
-            <Lock size={20} color="#94A3B8" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder={t.password}
-              placeholderTextColor="#94A3B8"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
-            <Eye size={20} color="#94A3B8" style={styles.eyeIcon} />
-          </View>
-
-          <TouchableOpacity
-            style={styles.loginButton}
-            activeOpacity={0.8}
-            onPress={handleLogin}
-            disabled={submitting}
-          >
-            {submitting ? <ActivityIndicator color="#0F172A" /> : <Text style={styles.loginButtonText}>{t.login}</Text>}
+          <TouchableOpacity style={styles.voiceGuide}>
+            <Volume2 size={24} color="#2DD4BF" />
+            <Text style={styles.voiceGuideText}>{t.voiceGuide}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.createAccountButton}
-            onPress={() => navigation.navigate("Register")}
-          >
-            <Text style={styles.createAccountText}>{t.createAccount}</Text>
-          </TouchableOpacity>
+          <View style={styles.form}>
+            <View style={styles.inputContainer}>
+              <Mail size={20} color="#94A3B8" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder={t.email}
+                placeholderTextColor="#94A3B8"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Lock size={20} color="#94A3B8" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder={t.password}
+                placeholderTextColor="#94A3B8"
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+              />
+              <Eye size={20} color="#94A3B8" style={styles.eyeIcon} />
+            </View>
+
+            <TouchableOpacity
+              style={styles.loginButton}
+              activeOpacity={0.8}
+              onPress={handleLogin}
+              disabled={submitting}
+            >
+              {submitting ? <ActivityIndicator color="#0F172A" /> : <Text style={styles.loginButtonText}>{t.login}</Text>}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.createAccountButton}
+              onPress={() => navigation.navigate("Register")}
+            >
+              <Text style={styles.createAccountText}>{t.createAccount}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 };
 

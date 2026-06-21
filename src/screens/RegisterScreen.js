@@ -9,6 +9,11 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView, // <-- Added ScrollView
+  TouchableWithoutFeedback, // <-- Added to dismiss keyboard
+  Keyboard // <-- Added to dismiss keyboard
 } from "react-native";
 import { ArrowLeft, User, Mail, Lock, Eye, ShieldCheck, Volume2, UserPlus } from "lucide-react-native";
 import { useAuth } from "../context/AuthContext";
@@ -46,93 +51,113 @@ const RegisterScreen = ({ navigation }) => {
   };
 
   return (
+    // 1. Move SafeAreaView to the outermost layer
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" />
 
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.navigate("Login")}>
-          <ArrowLeft size={28} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t.registerTitle}</Text>
-      </View>
-
-      <View style={styles.container}>
-        <View style={styles.iconContainer}>
-          <View style={styles.iconCircle}>
-            <UserPlus size={44} color="#F59E0B" />
-          </View>
-        </View>
-
-        <TouchableOpacity style={styles.voiceGuide}>
-          <Volume2 size={24} color="#2DD4BF" />
-          <Text style={styles.voiceGuideText}>{t.registerVoiceGuide}</Text>
-        </TouchableOpacity>
-
-        <View style={styles.form}>
-          <View style={styles.inputContainer}>
-            <User size={20} color="#94A3B8" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder={t.fullName}
-              placeholderTextColor="#64748B"
-              autoCapitalize="words"
-              value={name}
-              onChangeText={setName}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Mail size={20} color="#94A3B8" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder={t.email}
-              placeholderTextColor="#64748B"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              value={email}
-              onChangeText={setEmail}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Lock size={20} color="#94A3B8" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder={t.password}
-              placeholderTextColor="#64748B"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
-            <Eye size={20} color="#94A3B8" style={styles.eyeIcon} />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <ShieldCheck size={20} color="#94A3B8" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder={t.confirmPassword}
-              placeholderTextColor="#64748B"
-              secureTextEntry
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={styles.registerButton}
-            activeOpacity={0.8}
-            onPress={handleRegister}
-            disabled={submitting}
+      {/* 2. Place KeyboardAvoidingView directly inside SafeAreaView */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        // Offset adjusted to account for the header navigation size
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20} 
+      >
+        {/* 3. Wrap everything in a dismissible wrapper */}
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          
+          {/* 4. Use a ScrollView so content has physical room to slide up */}
+          <ScrollView 
+            contentContainerStyle={styles.scrollContainer}
+            bounces={false}
+            showsVerticalScrollIndicator={false}
           >
-            {submitting ? <ActivityIndicator color="#0F172A" /> : <Text style={styles.registerButtonText}>{t.register}</Text>}
-          </TouchableOpacity>
+            <View style={styles.header}>
+              <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+                <ArrowLeft size={28} color="#FFFFFF" />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>{t.registerTitle}</Text>
+            </View>
 
-          <TouchableOpacity style={styles.loginLink} onPress={() => navigation.navigate("Login")}>
-            <Text style={styles.loginLinkText}>{t.alreadyHaveAccount}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+            <View style={styles.container}>
+              <View style={styles.iconContainer}>
+                <View style={styles.iconCircle}>
+                  <UserPlus size={44} color="#F59E0B" />
+                </View>
+              </View>
+
+              <TouchableOpacity style={styles.voiceGuide}>
+                <Volume2 size={24} color="#2DD4BF" />
+                <Text style={styles.voiceGuideText}>{t.registerVoiceGuide}</Text>
+              </TouchableOpacity>
+
+              <View style={styles.form}>
+                <View style={styles.inputContainer}>
+                  <User size={20} color="#94A3B8" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder={t.fullName}
+                    placeholderTextColor="#64748B"
+                    autoCapitalize="words"
+                    value={name}
+                    onChangeText={setName}
+                  />
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <Mail size={20} color="#94A3B8" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder={t.email}
+                    placeholderTextColor="#64748B"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    value={email}
+                    onChangeText={setEmail}
+                  />
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <Lock size={20} color="#94A3B8" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder={t.password}
+                    placeholderTextColor="#64748B"
+                    secureTextEntry
+                    value={password}
+                    onChangeText={setPassword}
+                  />
+                  <Eye size={20} color="#94A3B8" style={styles.eyeIcon} />
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <ShieldCheck size={20} color="#94A3B8" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder={t.confirmPassword}
+                    placeholderTextColor="#64748B"
+                    secureTextEntry
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={styles.registerButton}
+                  activeOpacity={0.8}
+                  onPress={handleRegister}
+                  disabled={submitting}
+                >
+                  {submitting ? <ActivityIndicator color="#0F172A" /> : <Text style={styles.registerButtonText}>{t.register}</Text>}
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.loginLink} onPress={() => navigation.navigate("Login")}>
+                  <Text style={styles.loginLinkText}>{t.alreadyHaveAccount}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -141,6 +166,10 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#0F172A",
+  },
+  // Added a style rule for the ScrollView content layout
+  scrollContainer: {
+    flexGrow: 1,
   },
   header: {
     flexDirection: "row",
@@ -158,6 +187,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 30,
     alignItems: "center",
+    paddingBottom: 30, // Pad the bottom so content isn't flush with the keyboard edge
   },
   iconContainer: {
     marginTop: 30,
