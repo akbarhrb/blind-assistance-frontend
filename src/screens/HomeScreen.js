@@ -13,7 +13,7 @@ import AudioVisualizer from "../components/AnimatedWaveBar";
 const HomeScreen = ({ navigation }) => {
     const [permission, requestPermission] = useCameraPermissions();
     const [detectionStatus, setDetectionStatus] = useState("scanning");
-    const [detectedObjectLabel, setDetectedObjectLabel] = useState("");
+    const [detectedSummary, setDetectedSummary] = useState("");
     const [isDetecting, setIsDetecting] = useState(false);
     const [layout, setLayout] = useState({ width: 0, height: 0 });
     const [boxes, setBoxes] = useState([]);
@@ -26,6 +26,9 @@ const HomeScreen = ({ navigation }) => {
     const { strings, languageConfig, speechRate, voiceType, speechVoiceId } = useLanguage();
     const homeStrings = strings.home;
     const navStrings = strings.navigation;
+    const noDetectionsText = homeStrings.noDetections || homeStrings.noObjects || "No faces or objects detected";
+    const noDetectionsSpeech = homeStrings.noDetectionsSpeech || homeStrings.noObjectsSpeech || noDetectionsText;
+    const faceDetectedText = homeStrings.faceDetected || "Face detected";
     const [isCameraReady, setIsCameraReady] = useState(false);
     const [isCameraMounted, setIsCameraMounted] = useState(false);
 
@@ -44,6 +47,135 @@ const HomeScreen = ({ navigation }) => {
         }
 
         return label.charAt(0).toUpperCase() + label.slice(1);
+    };
+
+    const getFaceName = (box) => {
+        const rawName =
+            (typeof box?.person_name === "string" && box.person_name) ||
+            (typeof box?.name === "string" && box.name) ||
+            (typeof box?.label === "string" && box.label) ||
+            (typeof box?.displayName === "string" && box.displayName) ||
+            "";
+
+        return rawName.trim();
+    };
+
+    const buildImageForm = (uri) => {
+        const form = new FormData();
+        form.append("image", {
+            uri,
+            name: "frame.jpg",
+            type: "image/jpeg",
+        });
+        return form;
+    };
+
+    const normalizeBox = (box, kind) => {
+        if (!box || typeof box !== "object") {
+            return null;
+        }
+
+        const x = typeof box.x === "number"
+            ? box.x
+            : typeof box.left === "number"
+                ? box.left
+                : typeof box.x1 === "number"
+                    ? box.x1
+                    : 0;
+        const y = typeof box.y === "number"
+            ? box.y
+            : typeof box.top === "number"
+                ? box.top
+                : typeof box.y1 === "number"
+                    ? box.y1
+                    : 0;
+        const width = typeof box.width === "number"
+            ? box.width
+            : typeof box.w === "number"
+                ? box.w
+                : typeof box.x2 === "number" && typeof box.x1 === "number"
+                    ? box.x2 - box.x1
+                    : 0;
+        const height = typeof box.height === "number"
+            ? box.height
+            : typeof box.h === "number"
+                ? box.h
+                : typeof box.y2 === "number" && typeof box.y1 === "number"
+                    ? box.y2 - box.y1
+                    : 0;
+
+        if (width <= 0 || height <= 0) {
+            return null;
+        }
+
+        return {
+            ...box,
+            kind,
+            x,
+            y,
+            width,
+            height,
+            confidence: typeof box.confidence === "number"
+                ? box.confidence
+                : typeof box.score === "number"
+                    ? box.score
+                    : typeof box.probability === "number"
+                        ? box.probability
+                        : 0,
+            label: typeof box.label === "string"
+                ? box.label
+                : typeof box.name === "string"
+                    ? box.name
+                : typeof box.person_name === "string"
+                    ? box.person_name
+                    : kind,
+            faceName: kind === "face" ? getFaceName(box) : "",
+        };
+    };
+
+    const getBestBox = (items) => {
+        return items.reduce((currentBest, item) => {
+            if (!currentBest) {
+                return item;
+            }
+
+            const currentScore = typeof item?.confidence === "number" ? item.confidence : 0;
+            const bestScore = typeof currentBest?.confidence === "number" ? currentBest.confidence : 0;
+            return currentScore > bestScore ? item : currentBest;
+        }, null);
+    };
+
+    const isGenericFaceLabel = (label) => {
+        const normalized = (label || "").trim().toLowerCase();
+        return ["face", "person", "human", "unknown"].includes(normalized);
+    };
+
+    const buildDetectionSummary = (faceBox, objectBox) => {
+        const summaries = [];
+
+        if (faceBox) {
+            const faceName = faceBox.faceName || formatLabel(faceBox.label);
+            summaries.push(isGenericFaceLabel(faceName) ? faceDetectedText : faceName);
+        }
+
+        if (objectBox) {
+            const objectLabel = formatLabel(objectBox.label);
+            summaries.push(`${objectLabel} ${homeStrings.detectedSuffix}`);
+        }
+
+        if (summaries.length === 0) {
+            return {
+                status: "noDetections",
+                summary: "",
+                speech: noDetectionsSpeech,
+            };
+        }
+
+        return {
+            status: "detected",
+            summary: summaries.join(" | "),
+            speech: summaries.join(". "),
+        };
     };
 
     const speakDetection = useCallback((text) => {
@@ -85,76 +217,69 @@ const HomeScreen = ({ navigation }) => {
                 setImageSize({ width: photo.width, height: photo.height });
             }
 
-            const form = new FormData();
-            form.append("image", {
-                uri: photo.uri,
-                name: "frame.jpg",
-                type: "image/jpeg",
-            });
+            const [objectsResult, facesResult] = await Promise.all([
+                apiRequest("/detect/objects", {
+                    method: "POST",
+                    body: buildImageForm(photo.uri),
+                    isForm: true,
+                }),
+                apiRequest("/detect/faces", {
+                    method: "POST",
+                    body: buildImageForm(photo.uri),
+                    isForm: true,
+                }),
+            ]);
 
-            const result = await apiRequest("/detect/objects", {
-                method: "POST",
-                body: form,
-                isForm: true,
-            });
-
-            // Add this safety bailout!
             if (!isFocused) {
                 isDetectingRef.current = false;
                 setIsDetecting(false);
                 return;
             }
 
-            const detectedBoxes = Array.isArray(result?.boxes) ? result.boxes : [];
-            setBoxes(detectedBoxes);
+            const objectBoxes = Array.isArray(objectsResult?.boxes)
+                ? objectsResult.boxes.map((box) => normalizeBox(box, "object")).filter(Boolean)
+                : [];
+            const faceBoxes = Array.isArray(facesResult?.boxes)
+                ? facesResult.boxes.map((box) => normalizeBox(box, "face")).filter(Boolean)
+                : Array.isArray(facesResult?.faces)
+                    ? facesResult.faces.map((box) => normalizeBox(box, "face")).filter(Boolean)
+                    : [];
 
-            if (detectedBoxes.length === 0) {
-                setDetectionStatus("noObjects");
-                setDetectedObjectLabel("");
-                speakDetection(homeStrings.noObjectsSpeech);
-                return;
-            }
+            setBoxes([...faceBoxes, ...objectBoxes]);
 
-            const bestBox = detectedBoxes.reduce((currentBest, box) => {
-                if (!currentBest) {
-                    return box;
-                }
+            const bestObjectBox = getBestBox(objectBoxes);
+            const bestFaceBox = getBestBox(faceBoxes);
+            const detectionResult = buildDetectionSummary(bestFaceBox, bestObjectBox);
 
-                const currentScore = typeof box?.confidence === "number" ? box.confidence : 0;
-                const bestScore = typeof currentBest?.confidence === "number" ? currentBest.confidence : 0;
-                return currentScore > bestScore ? box : currentBest;
-            }, null);
-
-            const objectLabel = formatLabel(bestBox?.label);
-            const spokenText = `${objectLabel} ${homeStrings.detectedSuffix}`;
-            setDetectionStatus("detected");
-            setDetectedObjectLabel(objectLabel);
-            speakDetection(spokenText);
+            setDetectionStatus(detectionResult.status);
+            setDetectedSummary(detectionResult.summary);
+            speakDetection(detectionResult.speech);
         } catch (error) {
             setDetectionStatus("unavailable");
-            setDetectedObjectLabel("");
+            setDetectedSummary("");
         } finally {
             isDetectingRef.current = false;
             setIsDetecting(false);
         }
-    }, [permission?.granted, isFocused, speakDetection, homeStrings.detectedSuffix, homeStrings.noObjectsSpeech]);
+    }, [permission?.granted, isFocused, speakDetection, homeStrings.detectedSuffix, faceDetectedText, noDetectionsSpeech]);
 
     const scaleBox = (box) => {
-        // Prevent divide-by-zero on initial render
-        if (!layout.height || !imageSize.height) return box;
+        if (!layout.height || !imageSize.height) {
+            return box;
+        }
 
         const viewRatio = layout.width / layout.height;
         const imageRatio = imageSize.width / imageSize.height;
 
-        let scale, offsetX = 0, offsetY = 0;
+        let scale;
+        let offsetX = 0;
+        let offsetY = 0;
 
         if (imageRatio > viewRatio) {
-            // Image is wider than the view. It gets cropped on the sides.
             scale = layout.height / imageSize.height;
             const renderedWidth = imageSize.width * scale;
             offsetX = (layout.width - renderedWidth) / 2;
         } else {
-            // Image is taller than the view. It gets cropped on the top/bottom.
             scale = layout.width / imageSize.width;
             const renderedHeight = imageSize.height * scale;
             offsetY = (layout.height - renderedHeight) / 2;
@@ -173,18 +298,18 @@ const HomeScreen = ({ navigation }) => {
         let timer = null;
 
         if (isFocused) {
-            // Wait 300ms for the native slide/fade back animation to finish
             timer = setTimeout(() => {
                 setIsCameraMounted(true);
             }, 300);
         } else {
-            // Turn off immediately when leaving to free up hardware
             setIsCameraMounted(false);
             setIsCameraReady(false);
         }
 
         return () => {
-            if (timer) clearTimeout(timer);
+            if (timer) {
+                clearTimeout(timer);
+            }
         };
     }, [isFocused]);
 
@@ -193,8 +318,9 @@ const HomeScreen = ({ navigation }) => {
         let active = true;
 
         const tick = async () => {
-            // Safety check all conditions
-            if (!active || !isFocused || !isCameraReady || !isCameraMounted) return;
+            if (!active || !isFocused || !isCameraReady || !isCameraMounted) {
+                return;
+            }
 
             await runDetection();
 
@@ -206,7 +332,6 @@ const HomeScreen = ({ navigation }) => {
         if (isFocused && permission?.granted && isCameraReady && isCameraMounted) {
             tick();
         } else {
-            // Clean up locks when screen is inactive
             setBoxes([]);
             isDetectingRef.current = false;
             setIsDetecting(false);
@@ -225,15 +350,15 @@ const HomeScreen = ({ navigation }) => {
             return;
         }
 
-        if (detectionStatus === "noObjects") {
-            speakDetection(homeStrings.noObjectsSpeech);
+        if (detectionStatus === "noDetections") {
+            speakDetection(noDetectionsSpeech);
             return;
         }
 
-        if (detectionStatus === "detected" && detectedObjectLabel) {
-            speakDetection(`${detectedObjectLabel} ${homeStrings.detectedSuffix}`);
+        if (detectionStatus === "detected" && detectedSummary) {
+            speakDetection(detectedSummary);
         }
-    }, [detectionStatus, detectedObjectLabel, speakDetection, homeStrings.detectedSuffix, homeStrings.noObjectsSpeech]);
+    }, [detectionStatus, detectedSummary, speakDetection, noDetectionsSpeech]);
 
     useEffect(() => {
         return () => {
@@ -264,10 +389,10 @@ const HomeScreen = ({ navigation }) => {
                     <Text style={styles.alertText}>
                         {isDetecting
                             ? homeStrings.detecting
-                            : detectionStatus === "detected" && detectedObjectLabel
-                                ? `${detectedObjectLabel} ${homeStrings.detectedSuffix}`
-                                : detectionStatus === "noObjects"
-                                    ? homeStrings.noObjects
+                            : detectionStatus === "detected" && detectedSummary
+                                ? detectedSummary
+                                : detectionStatus === "noDetections"
+                                    ? noDetectionsText
                                     : detectionStatus === "unavailable"
                                         ? homeStrings.unavailable
                                         : homeStrings.scanning}
@@ -284,9 +409,15 @@ const HomeScreen = ({ navigation }) => {
                     }}
                 >
                     {permission?.granted && isCameraMounted ? (
-                        <CameraView key={isFocused ? "camera-active" : "camera-inactive"} onCameraReady={() => {
-                            setIsCameraReady(true);
-                        }} ref={cameraRef} style={styles.camera} facing="back" />
+                        <CameraView
+                            key={isFocused ? "camera-active" : "camera-inactive"}
+                            onCameraReady={() => {
+                                setIsCameraReady(true);
+                            }}
+                            ref={cameraRef}
+                            style={styles.camera}
+                            facing="back"
+                        />
                     ) : (
                         <View style={styles.cameraFallback}>
                             <Text style={styles.cameraFallbackText}>{homeStrings.cameraFallback}</Text>
@@ -296,24 +427,33 @@ const HomeScreen = ({ navigation }) => {
                     <Svg width={layout.width} height={layout.height} style={styles.overlay} pointerEvents="none">
                         {boxes.map((rawBox, index) => {
                             const box = scaleBox(rawBox);
-                            const label = `${rawBox.label} ${Math.round((rawBox.confidence || 0) * 100)}%`;
+                            const displayLabel = rawBox.kind === "face" && rawBox.faceName
+                                ? rawBox.faceName
+                                : formatLabel(rawBox.label);
+                            const label = rawBox.kind === "face"
+                                ? displayLabel
+                                : `${displayLabel} ${Math.round((rawBox.confidence || 0) * 100)}%`;
                             const labelX = box.x + 8;
                             const labelY = Math.max(16, box.y - 8);
+                            const strokeColor = rawBox.kind === "face" ? "#2DD4BF" : "#F59E0B";
+                            const fillColor = rawBox.kind === "face"
+                                ? "rgba(45, 212, 191, 0.08)"
+                                : "rgba(245, 158, 11, 0.08)";
 
                             return (
-                                <React.Fragment key={`${rawBox.label}-${index}`}>
+                                <React.Fragment key={`${rawBox.kind || "box"}-${rawBox.label}-${index}`}>
                                     <Rect
                                         x={box.x}
                                         y={box.y}
                                         width={box.width}
                                         height={box.height}
-                                        stroke="#FFFFFF"
+                                        stroke={strokeColor}
                                         strokeWidth={3}
-                                        fill="rgba(255,255,255,0.04)"
+                                        fill={fillColor}
                                         rx={10}
                                         ry={10}
                                     />
-                                    <SvgText x={labelX} y={labelY} fill="#FFFFFF" fontSize={16} fontWeight="700">
+                                    <SvgText x={labelX} y={labelY} fill={strokeColor} fontSize={16} fontWeight="700">
                                         {label}
                                     </SvgText>
                                 </React.Fragment>
