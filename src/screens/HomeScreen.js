@@ -560,8 +560,10 @@ const styles = StyleSheet.create({
         letterSpacing: 0.2,
     },
     cameraPreview: {
-        width: 240,
-        height: 160,
+        width: "92%",
+        maxWidth: 420,
+        aspectRatio: 4 / 3,
+        maxHeight: 340,
         borderRadius: 18,
         overflow: "hidden",
         marginTop: 20,
