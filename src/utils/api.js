@@ -60,38 +60,34 @@ export const apiRequest = async (path, options = {}) => {
       headers,
       body: options.body,
     });
-
-
-    const contentType = response.headers.get("content-type") || "";
-    const isJson = contentType.includes("application/json");
-    const rawText = await response.text();
-    let data = rawText;
-
-    if (isJson && rawText) {
-      try {
-        data = JSON.parse(rawText);
-      } catch (error) {
-        data = rawText;
-      }
-    }
-
-    if (!response.ok) {
-      const detail =
-        data?.detail ||
-        data?.message ||
-        (typeof data === "string" && data.trim() ? data.trim() : null) ||
-        `Request failed with status ${response.status}`;
-
-      throw new Error(`${detail} (${response.status} ${response.statusText})`);
-    }
-
-    return data;
   } catch (error) {
-    console.log(error);
-
-    // throw new Error(
-    //   `Network request failed for ${url}. Check that the backend is running and that EXPO_PUBLIC_API_BASE_URL is reachable from the device/emulator.`
-    // );
+    throw new Error("NETWORK_ERROR");
   }
 
+  const contentType = response.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const rawText = await response.text();
+  let data = rawText;
+
+  if (isJson && rawText) {
+    try {
+      data = JSON.parse(rawText);
+    } catch (error) {
+      data = rawText;
+    }
+  }
+
+  if (!response.ok) {
+    const detail =
+      data?.detail ||
+      data?.message ||
+      (typeof data === "string" && data.trim() ? data.trim() : null) ||
+      `Request failed with status ${response.status}`;
+
+    throw new Error(detail);
+  }
+
+  return data;
 };
+
+export const isNetworkError = (error) => error?.message === "NETWORK_ERROR";

@@ -11,13 +11,14 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  ScrollView, // <-- Added ScrollView
-  TouchableWithoutFeedback, // <-- Added to dismiss keyboard
-  Keyboard // <-- Added to dismiss keyboard
+  ScrollView,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import { ArrowLeft, User, Mail, Lock, Eye, ShieldCheck, Volume2, UserPlus } from "lucide-react-native";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
+import { isNetworkError } from "../utils/api";
 
 const RegisterScreen = ({ navigation }) => {
   const { signUp } = useAuth();
@@ -30,45 +31,44 @@ const RegisterScreen = ({ navigation }) => {
   const [submitting, setSubmitting] = useState(false);
 
   const handleRegister = async () => {
-    if (!name || !email || !password) {
-      Alert.alert(t.missingInfo, t.registerMissingBody);
+    if (!name.trim() || !email.trim() || !password) {
+      Alert.alert(t.missingInfo, t.registerValidationError);
       return;
     }
     if (password !== confirmPassword) {
-      Alert.alert(t.passwordMismatchTitle, t.passwordMismatchBody);
+      Alert.alert(t.passwordMismatchTitle, t.passwordMismatchError);
       return;
     }
 
     try {
       setSubmitting(true);
       await signUp(name.trim(), email.trim(), password);
-      navigation.replace("Home");
+      Alert.alert(t.registrationSuccessTitle, t.registrationSuccessBody, [
+        { text: t.continueButton, onPress: () => navigation.replace("Home") },
+      ]);
     } catch (error) {
-      Alert.alert(t.registrationFailed, error.message || t.registrationFailedBody);
+      if (isNetworkError(error)) {
+        Alert.alert(t.networkErrorTitle, t.networkErrorBody);
+      } else {
+        Alert.alert(t.registrationFailed, error.message || t.registrationFailedBody);
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    // 1. Move SafeAreaView to the outermost layer
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" />
-
-      {/* 2. Place KeyboardAvoidingView directly inside SafeAreaView */}
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        // Offset adjusted to account for the header navigation size
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20} 
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-        {/* 3. Wrap everything in a dismissible wrapper */}
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          
-          {/* 4. Use a ScrollView so content has physical room to slide up */}
-          <ScrollView 
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <ScrollView
             contentContainerStyle={styles.scrollContainer}
-            bounces={false}
+            keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.header}>
@@ -167,7 +167,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#0F172A",
   },
-  // Added a style rule for the ScrollView content layout
+  flex: {
+    flex: 1,
+  },
   scrollContainer: {
     flexGrow: 1,
   },
@@ -187,7 +189,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 30,
     alignItems: "center",
-    paddingBottom: 30, // Pad the bottom so content isn't flush with the keyboard edge
+    paddingBottom: 30,
   },
   iconContainer: {
     marginTop: 30,

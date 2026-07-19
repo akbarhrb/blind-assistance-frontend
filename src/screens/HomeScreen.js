@@ -22,13 +22,15 @@ const HomeScreen = ({ navigation }) => {
     const isDetectingRef = useRef(false);
     const lastSpokenRef = useRef("");
     const isFocused = useIsFocused();
-    const { isLoggedIn } = useAuth();
+    const { isLoggedIn, loading: authLoading } = useAuth();
     const { strings, languageConfig, speechRate, voiceType, speechVoiceId } = useLanguage();
     const homeStrings = strings.home;
+    const authStrings = strings.auth || {};
     const navStrings = strings.navigation;
     const noDetectionsText = homeStrings.noDetections || homeStrings.noObjects || "No faces or objects detected";
     const noDetectionsSpeech = homeStrings.noDetectionsSpeech || homeStrings.noObjectsSpeech || noDetectionsText;
     const faceDetectedText = homeStrings.faceDetected || "Face detected";
+    const loginRequiredText = authStrings.loginRequired || "Login required";
     const [isCameraReady, setIsCameraReady] = useState(false);
     const [isCameraMounted, setIsCameraMounted] = useState(false);
 
@@ -385,6 +387,12 @@ const HomeScreen = ({ navigation }) => {
             </View>
 
             <View style={styles.content}>
+                {!authLoading && !isLoggedIn && (
+                    <View style={styles.loginBadge}>
+                        <Text style={styles.loginBadgeText}>{loginRequiredText}</Text>
+                    </View>
+                )}
+
                 <View style={styles.alertBadge}>
                     <Text style={styles.alertText}>
                         {isDetecting
@@ -532,6 +540,24 @@ const styles = StyleSheet.create({
         color: "#0F172A",
         fontSize: 20,
         fontWeight: "bold",
+    },
+    loginBadge: {
+        backgroundColor: "#DC2626",
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 999,
+        marginBottom: 14,
+        shadowColor: "#DC2626",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.35,
+        shadowRadius: 10,
+        elevation: 8,
+    },
+    loginBadgeText: {
+        color: "#FFFFFF",
+        fontSize: 16,
+        fontWeight: "700",
+        letterSpacing: 0.2,
     },
     cameraPreview: {
         width: 240,
